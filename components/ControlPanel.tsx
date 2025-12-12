@@ -1,6 +1,6 @@
 import React from 'react';
 import { SimulationParams, ViewMode, Agent } from '../types';
-import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge } from 'lucide-react';
+import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X } from 'lucide-react';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -13,6 +13,10 @@ interface ControlPanelProps {
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
   hoveredAgent: Agent | null;
+  fogDistance: number;
+  setFogDistance: (d: number) => void;
+  selectedAgent: Agent | null;
+  setSelectedAgent: (a: Agent | null) => void;
 }
 
 const StatBar: React.FC<{ label: string; value: number; max: number; color: string; icon?: React.ReactNode }> = ({ label, value, max, color, icon }) => (
@@ -40,7 +44,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   resetSimulation,
   viewMode,
   setViewMode,
-  hoveredAgent
+  hoveredAgent,
+  fogDistance,
+  setFogDistance,
+  selectedAgent,
+  setSelectedAgent
 }) => {
   const handleChange = (key: keyof SimulationParams, value: number) => {
     setParams((prev) => ({ ...prev, [key]: value }));
@@ -135,6 +143,24 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       {/* Controls */}
       <div className="space-y-5">
         <div className="space-y-2">
+            <label className="text-xs font-medium text-gray-300 flex justify-between">
+                <span className="flex items-center gap-1"><CloudFog size={12} /> Fog Distance</span>
+                <span className="text-gray-400">{fogDistance}</span>
+            </label>
+            <input
+                type="range"
+                min="30"
+                max="300"
+                step="10"
+                value={fogDistance}
+                onChange={(e) => setFogDistance(parseFloat(e.target.value))}
+                className="w-full accent-gray-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+        </div>
+
+        <div className="h-px bg-white/10 my-4" />
+
+        <div className="space-y-2">
           <label className="text-xs font-medium text-gray-300 flex justify-between">
             <span>Food Spawn Rate</span>
             <span className="text-blue-400">{params.foodSpawnRate}</span>
@@ -203,14 +229,24 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     {/* Right Panel: Agent Inspector */}
     {hoveredAgent && (
         <div className="absolute top-4 right-4 z-10 w-64 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
-            <div className="flex items-center gap-3 mb-4 border-b border-white/10 pb-3">
-                <div className="p-2 bg-white/10 rounded-full">
-                    <Microscope size={20} className="text-blue-400" />
+            <div className="flex items-center justify-between gap-3 mb-4 border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/10 rounded-full">
+                        <Microscope size={20} className="text-blue-400" />
+                    </div>
+                    <div>
+                        <h2 className="font-bold text-sm">Agent #{hoveredAgent.id}</h2>
+                        <p className="text-[10px] text-gray-400">{hoveredAgent.state}</p>
+                    </div>
                 </div>
-                <div>
-                    <h2 className="font-bold text-sm">Agent #{hoveredAgent.id}</h2>
-                    <p className="text-[10px] text-gray-400">{hoveredAgent.state}</p>
-                </div>
+                {selectedAgent?.id === hoveredAgent.id && (
+                    <button 
+                        onClick={() => setSelectedAgent(null)}
+                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 border border-red-500/30 px-2 py-1 rounded-md bg-red-500/10"
+                    >
+                        <X size={12} /> Stop
+                    </button>
+                )}
             </div>
 
             <div className="space-y-1 mb-4">
@@ -255,6 +291,17 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     icon={<Zap size={10} />}
                 />
             </div>
+            
+            {selectedAgent?.id !== hoveredAgent.id && (
+                 <div className="mt-4 pt-3 border-t border-white/10 text-center">
+                    <button 
+                        onClick={() => setSelectedAgent(hoveredAgent)}
+                        className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    >
+                        Follow this agent
+                    </button>
+                 </div>
+            )}
         </div>
     )}
     </>

@@ -24,6 +24,7 @@ export interface Agent {
   energy: number;
   age: number;
   state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing';
+  trail: Vector3[];
 }
 
 export interface Food {
