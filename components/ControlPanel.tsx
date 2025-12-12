@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SimulationParams, ViewMode, Entity } from '../types';
-import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery } from 'lucide-react';
+import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search } from 'lucide-react';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -19,6 +19,9 @@ interface ControlPanelProps {
   setSelectedAgent: (a: Entity | null) => void;
   showEnergyBars: boolean;
   setShowEnergyBars: (show: boolean) => void;
+  followZoom: number;
+  setFollowZoom: (z: number) => void;
+  resetCamera: () => void;
 }
 
 const StatBar: React.FC<{ label: string; value: number; max: number; color: string; icon?: React.ReactNode }> = ({ label, value, max, color, icon }) => (
@@ -182,7 +185,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   selectedAgent,
   setSelectedAgent,
   showEnergyBars,
-  setShowEnergyBars
+  setShowEnergyBars,
+  followZoom,
+  setFollowZoom,
+  resetCamera
 }) => {
   const handleChange = (key: keyof SimulationParams, value: number) => {
     setParams((prev) => ({ ...prev, [key]: value }));
@@ -276,6 +282,36 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {/* Controls */}
       <div className="space-y-5">
+        
+        {/* Camera Controls Group */}
+        <div className="bg-white/5 p-3 rounded-lg border border-white/5 space-y-3">
+            <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
+                <Video size={14} /> Camera Controls
+            </label>
+            
+            <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-400 flex justify-between">
+                    <span className="flex items-center gap-1"><Search size={10} /> Follow Zoom</span>
+                    <span>{followZoom}</span>
+                </label>
+                <input
+                    type="range"
+                    min="5"
+                    max="60"
+                    step="1"
+                    value={followZoom}
+                    onChange={(e) => setFollowZoom(parseFloat(e.target.value))}
+                    className="w-full accent-blue-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                />
+            </div>
+             <button 
+                onClick={resetCamera}
+                className="w-full py-1.5 text-xs bg-white/10 hover:bg-white/20 rounded-md text-gray-300 transition-colors"
+            >
+                Reset Camera Position
+            </button>
+        </div>
+
         <div className="flex items-center justify-between">
              <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
                 <Battery size={14} /> Show Energy Bars

@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useRef, Suspense } from 'react';
+import React, { useState, useCallback, useRef, Suspense, useEffect } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stats, Environment } from '@react-three/drei';
 import { Simulation } from './components/Simulation';
 import { ControlPanel } from './components/ControlPanel';
 import { DEFAULT_PARAMS } from './core/constants';
 import { SimulationParams, ViewMode, Entity } from './types';
-import { Vector3, Spherical, MathUtils } from 'three';
+import { Vector3, Spherical, MathUtils, MOUSE } from 'three';
 
 // Error Boundary to catch 404s on the model loader
 class SimulationErrorBoundary extends React.Component<
@@ -28,7 +28,7 @@ class SimulationErrorBoundary extends React.Component<
 }
 
 // Component to handle camera following logic
-const CameraFollower = ({ selectedAgent }: { selectedAgent: Entity | null }) => {
+const CameraFollower = ({ selectedAgent, zoomDist }: { selectedAgent: Entity | null, zoomDist: number }) => {
   const { camera, controls } = useThree();
   
   useFrame((state, delta) => {
@@ -42,7 +42,6 @@ const CameraFollower = ({ selectedAgent }: { selectedAgent: Entity | null }) => 
        const currentTarget = ctrl.target as Vector3;
 
        // 1. Smoothly interpolate the target to the agent's position
-       // We calculate the delta so we can apply it to the camera as well (panning)
        const alpha = 5 * delta;
        const oldTarget = currentTarget.clone();
        currentTarget.lerp(agentPos, alpha);
@@ -55,8 +54,8 @@ const CameraFollower = ({ selectedAgent }: { selectedAgent: Entity | null }) => 
        const offset = camera.position.clone().sub(currentTarget);
        const spherical = new Spherical().setFromVector3(offset);
 
-       // Desired zoom distance
-       const TARGET_RADIUS = 20; 
+       // Use dynamic zoom distance
+       const TARGET_RADIUS = zoomDist;
        
        // Smoothly pull radius towards desired distance
        if (Math.abs(spherical.radius - TARGET_RADIUS) > 0.1) {
@@ -79,6 +78,38 @@ const CameraFollower = ({ selectedAgent }: { selectedAgent: Entity | null }) => 
   return null;
 };
 
+// Component to handle keyboard panning
+const KeyboardControls = ({ controlsRef }: { controlsRef: React.MutableRefObject<any> }) => {
+    const { camera } = useThree();
+    
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (!controlsRef.current) return;
+            const speed = 2;
+            const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            const right = new Vector3(1, 0, 0).applyQuaternion(camera.quaternion);
+            right.y = 0;
+            right.normalize();
+
+            const offset = new Vector3();
+            if (e.key === 'ArrowUp') offset.add(forward.multiplyScalar(speed));
+            if (e.key === 'ArrowDown') offset.add(forward.multiplyScalar(-speed));
+            if (e.key === 'ArrowLeft') offset.add(right.multiplyScalar(-speed));
+            if (e.key === 'ArrowRight') offset.add(right.multiplyScalar(speed));
+
+            if (offset.lengthSq() > 0) {
+                controlsRef.current.target.add(offset);
+                camera.position.add(offset);
+            }
+        }
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [camera, controlsRef]);
+    return null;
+};
+
 export default function App() {
   const [params, setParams] = useState<SimulationParams>(DEFAULT_PARAMS);
   const [paused, setPaused] = useState(false);
@@ -91,7 +122,9 @@ export default function App() {
   const [fogDistance, setFogDistance] = useState(180);
   const [selectedAgent, setSelectedAgent] = useState<Entity | null>(null);
   const [showEnergyBars, setShowEnergyBars] = useState(true);
+  const [followZoom, setFollowZoom] = useState(12);
 
+  const controlsRef = useRef<any>(null);
   const hoverTimeout = useRef<any>(null);
 
   const handleStatsUpdate = useCallback((count: number, avgSelfishness: number) => {
@@ -106,7 +139,6 @@ export default function App() {
 
   const handleAgentSelect = (agent: Entity | null) => {
     setSelectedAgent(agent);
-    // Also set as hovered so the inspector shows up immediately
     if (agent) {
         if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
         setHoveredAgent(agent);
@@ -122,11 +154,21 @@ export default function App() {
     if (agent) {
         setHoveredAgent(agent);
     } else {
-        // Debounce clearing to prevent flicker when moving between agent sphere and energy bar
         hoverTimeout.current = setTimeout(() => {
             setHoveredAgent(null);
         }, 50);
     }
+  };
+
+  const handleResetCamera = () => {
+      setSelectedAgent(null);
+      if (controlsRef.current) {
+          const ctrl = controlsRef.current;
+          ctrl.reset();
+          ctrl.target.set(0, 0, 0);
+          ctrl.object.position.set(0, 50, 40);
+          ctrl.update();
+      }
   };
 
   const commonProps = {
@@ -162,6 +204,9 @@ export default function App() {
         setSelectedAgent={handleAgentSelect}
         showEnergyBars={showEnergyBars}
         setShowEnergyBars={setShowEnergyBars}
+        followZoom={followZoom}
+        setFollowZoom={setFollowZoom}
+        resetCamera={handleResetCamera}
       />
 
       <div className="absolute inset-0 z-0">
@@ -181,23 +226,28 @@ export default function App() {
           <SimulationErrorBoundary 
             fallback={(err) => {
                 console.warn("Falling back to procedural models due to load error:", err);
-                // Using key='procedural' forces a remount
                 return <Simulation key="procedural" {...commonProps} fallbackMode={true} />;
             }}
           >
             <Suspense fallback={null}>
-                {/* Using key='model' ensures this is treated as a distinct tree */}
                 <Simulation key="model" {...commonProps} />
             </Suspense>
           </SimulationErrorBoundary>
 
-          <CameraFollower selectedAgent={selectedAgent} />
+          <CameraFollower selectedAgent={selectedAgent} zoomDist={followZoom} />
+          <KeyboardControls controlsRef={controlsRef} />
 
           <OrbitControls 
+            ref={controlsRef}
             makeDefault 
             maxPolarAngle={Math.PI / 2 - 0.1} 
             minDistance={5} 
-            maxDistance={200} 
+            maxDistance={200}
+            mouseButtons={{
+                LEFT: MOUSE.PAN,
+                RIGHT: MOUSE.ROTATE,
+                MIDDLE: MOUSE.DOLLY
+            }}
           />
           <Environment preset="night" />
           <Stats className="!left-auto !right-0 !top-auto !bottom-0" />
@@ -206,7 +256,7 @@ export default function App() {
 
        {/* Overlay Hints */}
       <div className="absolute bottom-4 left-4 text-white/30 text-xs pointer-events-none select-none z-10">
-        <p>Right Click: Pan • Left Click: Rotate/Select • Scroll: Zoom</p>
+        <p>Right Drag: Rotate • Left Drag: Pan • Arrow Keys: Pan • Scroll: Zoom</p>
       </div>
     </div>
   );

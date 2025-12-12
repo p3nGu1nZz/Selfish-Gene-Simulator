@@ -12,6 +12,8 @@ interface Props {
     selectedAgent: Entity | null;
 }
 
+const HOP_DURATION = 0.3; // Must match AgentSystem
+
 export const InteractionLayer: React.FC<Props> = ({ onHoverAgent, hoveredAgent, onSelectAgent, selectedAgent }) => {
     const hitboxRef = useRef<InstancedMesh>(null);
     const tempObj = useMemo(() => new Object3D(), []);
@@ -30,19 +32,16 @@ export const InteractionLayer: React.FC<Props> = ({ onHoverAgent, hoveredAgent, 
                 const { position, agent, velocity } = entity;
                 if(!agent) continue;
 
-                const scale = agent.genes.size;
-                const speed = velocity ? velocity.length() : 0;
-                const isMoving = speed > 0.05;
-
+                // Match AgentLayer scale logic
+                const scale = agent.genes.size * 3.5;
+                
+                // Match AgentLayer hop logic
                 let hopY = 0;
-                if (isMoving) {
-                    const hopFreq = 3 + Math.min(speed * 2, 4); 
-                    const hopPhase = entity.id * 13.37;
-                    const rawSine = Math.sin(time * hopFreq + hopPhase);
-                    const threshold = 0.2; 
-                    const hopGate = Math.max(0, rawSine - threshold);
-                    const normalizedHop = hopGate / (1 - threshold);
-                    hopY = Math.pow(normalizedHop, 1.5) * 0.6 * scale;
+                if (agent.state !== 'resting' && agent.hopTimer < HOP_DURATION) {
+                    const progress = agent.hopTimer / HOP_DURATION;
+                    hopY = Math.sin(progress * Math.PI) * scale * 0.8;
+                } else if (agent.state === 'resting') {
+                    hopY = Math.sin(time * 2 + entity.id) * 0.05 * scale;
                 }
                 
                 const currentPos = position.clone();
@@ -50,14 +49,18 @@ export const InteractionLayer: React.FC<Props> = ({ onHoverAgent, hoveredAgent, 
 
                 const dummyBase = new Object3D();
                 dummyBase.position.copy(currentPos);
-                if (velocity && velocity.lengthSq() > 0.001) {
-                    dummyBase.lookAt(currentPos.clone().add(velocity));
+                // Use heading for rotation if available to match visual
+                if (agent.heading) {
+                    dummyBase.lookAt(currentPos.clone().add(agent.heading));
                 }
 
                 tempObj.position.copy(currentPos);
+                // Center hitbox on body
                 tempObj.position.y += 0.5 * scale; 
                 tempObj.rotation.copy(dummyBase.rotation);
-                const hitScale = scale * 1.5; 
+                
+                // Hitbox scale - generous to make clicking easy
+                const hitScale = scale * 1.2; 
                 tempObj.scale.set(hitScale, hitScale, hitScale);
                 tempObj.updateMatrix();
                 hitboxRef.current.setMatrixAt(i, tempObj.matrix);
@@ -106,8 +109,8 @@ export const InteractionLayer: React.FC<Props> = ({ onHoverAgent, hoveredAgent, 
                 >
                     <ringGeometry 
                         args={[
-                            1.2 * ((selectedAgent || hoveredAgent)?.agent?.genes.size || 1), 
-                            1.4 * ((selectedAgent || hoveredAgent)?.agent?.genes.size || 1), 
+                            1.2 * ((selectedAgent || hoveredAgent)?.agent?.genes.size || 1) * 3.5, 
+                            1.4 * ((selectedAgent || hoveredAgent)?.agent?.genes.size || 1) * 3.5, 
                             32
                         ]} 
                     />
