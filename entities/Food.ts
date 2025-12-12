@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
-import { world } from '../ecs';
-import { WORLD_SIZE } from '../constants';
+import { world } from '../core/ecs';
+import { WORLD_SIZE } from '../core/constants';
 
 let nextFoodId = 0;
 

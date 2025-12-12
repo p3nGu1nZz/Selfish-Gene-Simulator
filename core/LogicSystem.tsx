@@ -1,9 +1,9 @@
 import React from 'react';
 import { useFrame } from '@react-three/fiber';
-import { FoodSystem, AgentSystem, ParticleSystem } from './index';
+import { FoodSystem, AgentSystem, ParticleSystem } from '../systems';
 import { SimulationParams, ViewMode } from '../types';
-import { agents } from '../core/ecs';
-import { getAgentColorRGB } from '../core/utils';
+import { agents } from './ecs';
+import { getAgentColorRGB } from './utils';
 
 interface LogicSystemProps {
     params: SimulationParams;

@@ -16,10 +16,12 @@ export interface AgentData {
   genes: Genome;
   energy: number;
   age: number;
-  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating';
+  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting';
   target: Vector3 | null;
   trail: Vector3[];
   lastMated: number; // Time of last mating to prevent spam
+  heading: Vector3;
+  hopTimer: number;
 }
 
 export interface FoodData {

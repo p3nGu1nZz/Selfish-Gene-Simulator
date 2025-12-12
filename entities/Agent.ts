@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
-import { world } from '../ecs';
+import { world } from '../core/ecs';
 import { Genome, Entity, AgentData } from '../types';
-import { MAX_SPEED_BASE, WORLD_SIZE, FIRST_NAMES, LAST_NAMES } from '../constants';
+import { MAX_SPEED_BASE, WORLD_SIZE, FIRST_NAMES, LAST_NAMES } from '../core/constants';
 
 let nextAgentId = 0;
 
@@ -62,14 +62,15 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
     const limit = (WORLD_SIZE / 2) - 5;
     const position = pos ? pos.clone() : new Vector3(rand(-limit, limit), 0, rand(-limit, limit));
     
-    const velocity = new Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize().multiplyScalar(MAX_SPEED_BASE);
+    // Initial random velocity for heading
+    const initialVel = new Vector3(rand(-1, 1), 0, rand(-1, 1)).normalize().multiplyScalar(MAX_SPEED_BASE);
     const genome = genes || createRandomGenome();
     const agentName = name || generateName();
     
     return world.add({
         id: nextAgentId++,
         position,
-        velocity,
+        velocity: new Vector3(0,0,0), // Start idle
         agent: {
             name: agentName,
             genes: genome,
@@ -78,7 +79,9 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
             state: 'wandering',
             target: null,
             trail: [],
-            lastMated: 0
+            lastMated: 0,
+            heading: initialVel.clone().normalize(),
+            hopTimer: Math.random() // Desync hops
         }
     });
 };

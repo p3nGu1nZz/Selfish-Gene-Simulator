@@ -3,7 +3,7 @@ import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stats, Environment } from '@react-three/drei';
 import { Simulation } from './components/Simulation';
 import { ControlPanel } from './components/ControlPanel';
-import { DEFAULT_PARAMS, WORLD_SIZE } from './constants';
+import { DEFAULT_PARAMS } from './core/constants';
 import { SimulationParams, ViewMode, Entity } from './types';
 import { Vector3, Spherical, MathUtils } from 'three';
 
@@ -174,7 +174,8 @@ export default function App() {
             position={[50, 50, 25]} 
             intensity={1.5} 
             castShadow 
-            shadow-mapSize={[1024, 1024]} 
+            shadow-mapSize={[2048, 2048]} 
+            shadow-bias={-0.0001}
           />
           
           <SimulationErrorBoundary 

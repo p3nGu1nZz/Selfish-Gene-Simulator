@@ -1,5 +1,5 @@
 import { World } from 'miniplex';
-import { Entity } from './types';
+import { Entity } from '../types';
 
 // Create the global world
 export const world = new World<Entity>();

@@ -1,5 +1,5 @@
 import { Vector3, Color } from 'three';
-import { world } from '../ecs';
+import { world } from '../core/ecs';
 
 const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 

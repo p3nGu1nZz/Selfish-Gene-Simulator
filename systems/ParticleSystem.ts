@@ -1,4 +1,4 @@
-import { world } from '../ecs';
+import { world } from '../core/ecs';
 
 export const ParticleSystem = (dt: number) => {
     for (const entity of world.with('particle', 'velocity', 'position')) {
