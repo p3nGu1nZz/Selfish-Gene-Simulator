@@ -1,6 +1,6 @@
 import { SimulationParams } from './types';
 
-export const WORLD_SIZE = 100;
+export const WORLD_SIZE = 200;
 export const MAX_POPULATION = 600;
 
 export const DEFAULT_PARAMS: SimulationParams = {

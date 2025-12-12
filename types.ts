@@ -1,37 +1,50 @@
-import { Vector3 } from 'three';
+import { Vector3, Color } from 'three';
 
 export type ViewMode = 'selfishness' | 'speed' | 'size' | 'mutation';
 
 export interface Genome {
-  // 0 to 1. 1 = Highly aggressive/selfish, 0 = Altruistic/Cooperative
   selfishness: number;
-  // 0.5 to 3.0. Speed multiplier. Higher costs more energy.
   speed: number;
-  // 0.5 to 2.0. Physical size. Larger wins fights but costs more energy.
   size: number;
-  // 0 to 1. Mutation rate for offspring.
   mutationRate: number;
-  // Visual hue (0-360) often linked to selfishness for visualization
   hue: number;
 }
 
-export interface Agent {
-  id: number;
-  position: Vector3;
-  velocity: Vector3;
-  target: Vector3 | null;
+// Component Data Interfaces
+export interface AgentData {
   genes: Genome;
   energy: number;
   age: number;
   state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing';
+  target: Vector3 | null;
   trail: Vector3[];
 }
 
-export interface Food {
-  id: number;
-  position: Vector3;
+export interface FoodData {
   value: number;
 }
+
+export interface ParticleData {
+  life: number;
+  maxLife: number;
+  color: Color;
+  scale: number;
+}
+
+// The Main ECS Entity Type
+export type Entity = {
+  id: number;
+  position: Vector3; // All physical entities have a position
+  velocity?: Vector3; // Agents and Particles have velocity
+  
+  // Components (Optional based on entity type)
+  agent?: AgentData;
+  food?: FoodData;
+  particle?: ParticleData;
+  
+  // Transient/System flags
+  deleted?: boolean;
+};
 
 export interface SimulationParams {
   initialPop: number;

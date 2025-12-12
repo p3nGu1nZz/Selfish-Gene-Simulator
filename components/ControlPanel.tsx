@@ -1,6 +1,6 @@
-import React from 'react';
-import { SimulationParams, ViewMode, Agent } from '../types';
-import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { SimulationParams, ViewMode, Entity } from '../types';
+import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery } from 'lucide-react';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -12,11 +12,13 @@ interface ControlPanelProps {
   resetSimulation: () => void;
   viewMode: ViewMode;
   setViewMode: (mode: ViewMode) => void;
-  hoveredAgent: Agent | null;
+  hoveredAgent: Entity | null;
   fogDistance: number;
   setFogDistance: (d: number) => void;
-  selectedAgent: Agent | null;
-  setSelectedAgent: (a: Agent | null) => void;
+  selectedAgent: Entity | null;
+  setSelectedAgent: (a: Entity | null) => void;
+  showEnergyBars: boolean;
+  setShowEnergyBars: (show: boolean) => void;
 }
 
 const StatBar: React.FC<{ label: string; value: number; max: number; color: string; icon?: React.ReactNode }> = ({ label, value, max, color, icon }) => (
@@ -34,6 +36,131 @@ const StatBar: React.FC<{ label: string; value: number; max: number; color: stri
   </div>
 );
 
+// Inner component that refreshes independently to show live stats
+const LiveInspector: React.FC<{ agent: Entity, selectedAgentId: number | undefined, setSelectedAgent: (a: Entity | null) => void }> = ({ agent, selectedAgentId, setSelectedAgent }) => {
+    const [, setTick] = useState(0);
+
+    useEffect(() => {
+        let frameId: number;
+        const loop = () => {
+            setTick(t => t + 1);
+            frameId = requestAnimationFrame(loop);
+        };
+        loop();
+        return () => cancelAnimationFrame(frameId);
+    }, []);
+
+    // Safety check if agent died/removed
+    if (!agent.agent) return null;
+
+    const data = agent.agent;
+
+    return (
+        <div className="absolute top-4 right-4 z-10 w-64 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
+            <div className="flex items-center justify-between gap-3 mb-4 border-b border-white/10 pb-3">
+                <div className="flex items-center gap-3">
+                    <div className="p-2 bg-white/10 rounded-full">
+                        <Microscope size={20} className="text-blue-400" />
+                    </div>
+                    <div>
+                        <h2 className="font-bold text-sm">Agent #{agent.id}</h2>
+                        <p className="text-[10px] text-gray-400 capitalize">{data.state.replace('_', ' ')}</p>
+                    </div>
+                </div>
+                {selectedAgentId === agent.id && (
+                    <button 
+                        onClick={() => setSelectedAgent(null)}
+                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 border border-red-500/30 px-2 py-1 rounded-md bg-red-500/10"
+                    >
+                        <X size={12} /> Stop
+                    </button>
+                )}
+            </div>
+
+            <div className="space-y-1 mb-4">
+                <div className="flex justify-between text-xs mb-1">
+                    <span className="text-gray-400">Energy</span>
+                    <span className={data.energy < 20 ? "text-red-400" : "text-green-400"}>{data.energy.toFixed(0)}</span>
+                </div>
+                <div className="w-full bg-gray-800 rounded-full h-1.5">
+                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${Math.min(100, data.energy)}%` }}></div>
+                </div>
+            </div>
+
+             {/* Live Stats */}
+             <div className="grid grid-cols-2 gap-2 mb-4">
+                <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">
+                        <Clock size={10} /> Age
+                    </div>
+                    <div className="text-sm font-mono">{data.age.toFixed(0)}</div>
+                </div>
+                 <div className="bg-white/5 p-2 rounded-lg border border-white/5">
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">
+                        <Move size={10} /> Velocity
+                    </div>
+                    <div className="text-sm font-mono">{agent.velocity?.length().toFixed(2)}</div>
+                </div>
+                 <div className="col-span-2 bg-white/5 p-2 rounded-lg border border-white/5">
+                    <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">
+                        <Target size={10} /> Target
+                    </div>
+                    <div className="text-xs font-mono text-gray-300 truncate">
+                        {data.target 
+                            ? `[${data.target.x.toFixed(1)}, ${data.target.z.toFixed(1)}]` 
+                            : 'None'
+                        }
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-3">
+                <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Genetic Profile</h3>
+                
+                <StatBar 
+                    label="Selfishness" 
+                    value={data.genes.selfishness} 
+                    max={1} 
+                    color="#f87171" 
+                    icon={<Dna size={10} />}
+                />
+                <StatBar 
+                    label="Speed" 
+                    value={data.genes.speed} 
+                    max={3} 
+                    color="#60a5fa" 
+                    icon={<Gauge size={10} />}
+                />
+                <StatBar 
+                    label="Size" 
+                    value={data.genes.size} 
+                    max={2} 
+                    color="#c084fc" 
+                    icon={<Scale size={10} />}
+                />
+                 <StatBar 
+                    label="Mutation Rate" 
+                    value={data.genes.mutationRate * 100} 
+                    max={20} 
+                    color="#f472b6" 
+                    icon={<Zap size={10} />}
+                />
+            </div>
+            
+            {selectedAgentId !== agent.id && (
+                 <div className="mt-4 pt-3 border-t border-white/10 text-center">
+                    <button 
+                        onClick={() => setSelectedAgent(agent)}
+                        className="text-xs text-blue-400 hover:text-blue-300 underline"
+                    >
+                        Follow this agent
+                    </button>
+                 </div>
+            )}
+        </div>
+    );
+};
+
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   params,
   setParams,
@@ -48,7 +175,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   fogDistance,
   setFogDistance,
   selectedAgent,
-  setSelectedAgent
+  setSelectedAgent,
+  showEnergyBars,
+  setShowEnergyBars
 }) => {
   const handleChange = (key: keyof SimulationParams, value: number) => {
     setParams((prev) => ({ ...prev, [key]: value }));
@@ -142,6 +271,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
       {/* Controls */}
       <div className="space-y-5">
+        <div className="flex items-center justify-between">
+             <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
+                <Battery size={14} /> Show Energy Bars
+            </label>
+            <button 
+                onClick={() => setShowEnergyBars(!showEnergyBars)}
+                className={`w-10 h-5 rounded-full transition-colors relative ${showEnergyBars ? 'bg-blue-500' : 'bg-gray-700'}`}
+            >
+                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${showEnergyBars ? 'translate-x-5' : 'translate-x-0'}`} />
+            </button>
+        </div>
+
         <div className="space-y-2">
             <label className="text-xs font-medium text-gray-300 flex justify-between">
                 <span className="flex items-center gap-1"><CloudFog size={12} /> Fog Distance</span>
@@ -228,81 +369,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     {/* Right Panel: Agent Inspector */}
     {hoveredAgent && (
-        <div className="absolute top-4 right-4 z-10 w-64 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
-            <div className="flex items-center justify-between gap-3 mb-4 border-b border-white/10 pb-3">
-                <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/10 rounded-full">
-                        <Microscope size={20} className="text-blue-400" />
-                    </div>
-                    <div>
-                        <h2 className="font-bold text-sm">Agent #{hoveredAgent.id}</h2>
-                        <p className="text-[10px] text-gray-400">{hoveredAgent.state}</p>
-                    </div>
-                </div>
-                {selectedAgent?.id === hoveredAgent.id && (
-                    <button 
-                        onClick={() => setSelectedAgent(null)}
-                        className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 border border-red-500/30 px-2 py-1 rounded-md bg-red-500/10"
-                    >
-                        <X size={12} /> Stop
-                    </button>
-                )}
-            </div>
-
-            <div className="space-y-1 mb-4">
-                <div className="flex justify-between text-xs mb-1">
-                    <span className="text-gray-400">Energy</span>
-                    <span className={hoveredAgent.energy < 20 ? "text-red-400" : "text-green-400"}>{hoveredAgent.energy.toFixed(0)}</span>
-                </div>
-                <div className="w-full bg-gray-800 rounded-full h-1.5">
-                    <div className="bg-green-500 h-1.5 rounded-full" style={{ width: `${Math.min(100, hoveredAgent.energy)}%` }}></div>
-                </div>
-            </div>
-
-            <div className="space-y-3">
-                <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider mb-2">Genetic Profile</h3>
-                
-                <StatBar 
-                    label="Selfishness" 
-                    value={hoveredAgent.genes.selfishness} 
-                    max={1} 
-                    color="#f87171" 
-                    icon={<Dna size={10} />}
-                />
-                <StatBar 
-                    label="Speed" 
-                    value={hoveredAgent.genes.speed} 
-                    max={3} 
-                    color="#60a5fa" 
-                    icon={<Gauge size={10} />}
-                />
-                <StatBar 
-                    label="Size" 
-                    value={hoveredAgent.genes.size} 
-                    max={2} 
-                    color="#c084fc" 
-                    icon={<Scale size={10} />}
-                />
-                 <StatBar 
-                    label="Mutation Rate" 
-                    value={hoveredAgent.genes.mutationRate * 100} 
-                    max={20} 
-                    color="#f472b6" 
-                    icon={<Zap size={10} />}
-                />
-            </div>
-            
-            {selectedAgent?.id !== hoveredAgent.id && (
-                 <div className="mt-4 pt-3 border-t border-white/10 text-center">
-                    <button 
-                        onClick={() => setSelectedAgent(hoveredAgent)}
-                        className="text-xs text-blue-400 hover:text-blue-300 underline"
-                    >
-                        Follow this agent
-                    </button>
-                 </div>
-            )}
-        </div>
+        <LiveInspector 
+            agent={hoveredAgent} 
+            selectedAgentId={selectedAgent?.id} 
+            setSelectedAgent={setSelectedAgent} 
+        />
     )}
     </>
   );

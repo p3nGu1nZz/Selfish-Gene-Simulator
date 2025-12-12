@@ -1,26 +1,53 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stats, Environment } from '@react-three/drei';
 import { Simulation } from './components/Simulation';
 import { ControlPanel } from './components/ControlPanel';
 import { DEFAULT_PARAMS, WORLD_SIZE } from './constants';
-import { SimulationParams, ViewMode, Agent } from './types';
-import { Vector3 } from 'three';
+import { SimulationParams, ViewMode, Entity } from './types';
+import { Vector3, Spherical } from 'three';
 
 // Component to handle camera following logic
-const CameraFollower = ({ selectedAgent }: { selectedAgent: Agent | null }) => {
-  const { controls } = useThree();
+const CameraFollower = ({ selectedAgent }: { selectedAgent: Entity | null }) => {
+  const { camera, controls } = useThree();
   
   useFrame((state, delta) => {
     if (selectedAgent && controls) {
-      // @ts-ignore - OrbitControls type definition often misses 'target' in standard useThree types depending on version
+      // @ts-ignore
       const target = controls.target as Vector3;
+      const agentPos = selectedAgent.position;
       
-      // Smoothly interpolate the orbit controls target to the agent's position
-      // Using a faster lerp for responsiveness
-      target.lerp(selectedAgent.position, 5 * delta);
+      // 1. Smoothly interpolate the target to the agent's position
+      // This keeps the camera looking at the agent
+      const lerpSpeed = 4 * delta;
+      target.lerp(agentPos, lerpSpeed);
       
-      // Update controls to apply changes
+      // 2. Adjust camera position for better context (tilt and zoom)
+      // Calculate current offset from target
+      const offset = camera.position.clone().sub(target);
+      const spherical = new Spherical().setFromVector3(offset);
+
+      // Desired configuration:
+      // Radius: ~30 units provides good context without being too far
+      // Phi: ~50 degrees (PI/3.5) gives a nice top-down diagonal view
+      const desiredRadius = 30;
+      const desiredPhi = Math.PI / 3.5; 
+
+      // Smoothly pull radius towards desired distance
+      spherical.radius += (desiredRadius - spherical.radius) * delta;
+      
+      // Smoothly pull angle up if we are looking too much from the side (high phi)
+      // We allow the user to rotate freely, but provide a gentle guide towards a better angle
+      if (spherical.phi > desiredPhi + 0.2) {
+         spherical.phi += (desiredPhi - spherical.phi) * delta;
+      }
+      
+      spherical.makeSafe();
+
+      // Apply the modified offset back to camera position
+      const newOffset = new Vector3().setFromSpherical(spherical);
+      camera.position.copy(target.clone().add(newOffset));
+      
       // @ts-ignore
       controls.update();
     }
@@ -35,11 +62,14 @@ export default function App() {
   const [stats, setStats] = useState({ count: 0, avgSelfishness: 0 });
   const [resetTrigger, setResetTrigger] = useState(0);
   const [viewMode, setViewMode] = useState<ViewMode>('selfishness');
-  const [hoveredAgent, setHoveredAgent] = useState<Agent | null>(null);
+  const [hoveredAgent, setHoveredAgent] = useState<Entity | null>(null);
   
   // New State
   const [fogDistance, setFogDistance] = useState(90);
-  const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
+  const [selectedAgent, setSelectedAgent] = useState<Entity | null>(null);
+  const [showEnergyBars, setShowEnergyBars] = useState(true);
+
+  const hoverTimeout = useRef<any>(null);
 
   const handleStatsUpdate = useCallback((count: number, avgSelfishness: number) => {
     setStats({ count, avgSelfishness });
@@ -51,10 +81,29 @@ export default function App() {
     setSelectedAgent(null);
   };
 
-  const handleAgentSelect = (agent: Agent | null) => {
+  const handleAgentSelect = (agent: Entity | null) => {
     setSelectedAgent(agent);
     // Also set as hovered so the inspector shows up immediately
-    if (agent) setHoveredAgent(agent);
+    if (agent) {
+        if (hoverTimeout.current) clearTimeout(hoverTimeout.current);
+        setHoveredAgent(agent);
+    }
+  };
+
+  const handleAgentHover = (agent: Entity | null) => {
+    if (hoverTimeout.current) {
+        clearTimeout(hoverTimeout.current);
+        hoverTimeout.current = null;
+    }
+
+    if (agent) {
+        setHoveredAgent(agent);
+    } else {
+        // Debounce clearing to prevent flicker when moving between agent sphere and energy bar
+        hoverTimeout.current = setTimeout(() => {
+            setHoveredAgent(null);
+        }, 50);
+    }
   };
 
   return (
@@ -75,6 +124,8 @@ export default function App() {
         setFogDistance={setFogDistance}
         selectedAgent={selectedAgent}
         setSelectedAgent={handleAgentSelect}
+        showEnergyBars={showEnergyBars}
+        setShowEnergyBars={setShowEnergyBars}
       />
 
       <div className="absolute inset-0 z-0">
@@ -96,10 +147,11 @@ export default function App() {
             onStatsUpdate={handleStatsUpdate} 
             resetTrigger={resetTrigger}
             viewMode={viewMode}
-            onHoverAgent={setHoveredAgent}
+            onHoverAgent={handleAgentHover}
             hoveredAgent={hoveredAgent}
             onSelectAgent={handleAgentSelect}
             selectedAgent={selectedAgent}
+            showEnergyBars={showEnergyBars}
           />
 
           <CameraFollower selectedAgent={selectedAgent} />
