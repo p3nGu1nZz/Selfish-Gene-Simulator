@@ -12,12 +12,14 @@ export interface Genome {
 
 // Component Data Interfaces
 export interface AgentData {
+  name: { first: string; last: string };
   genes: Genome;
   energy: number;
   age: number;
-  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing';
+  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating';
   target: Vector3 | null;
   trail: Vector3[];
+  lastMated: number; // Time of last mating to prevent spam
 }
 
 export interface FoodData {
@@ -25,10 +27,12 @@ export interface FoodData {
 }
 
 export interface ParticleData {
+  type: 'particle' | 'heart';
   life: number;
   maxLife: number;
   color: Color;
   scale: number;
+  rotation?: number; // For hearts
 }
 
 // The Main ECS Entity Type

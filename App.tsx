@@ -65,7 +65,7 @@ export default function App() {
   const [hoveredAgent, setHoveredAgent] = useState<Entity | null>(null);
   
   // New State
-  const [fogDistance, setFogDistance] = useState(90);
+  const [fogDistance, setFogDistance] = useState(180);
   const [selectedAgent, setSelectedAgent] = useState<Entity | null>(null);
   const [showEnergyBars, setShowEnergyBars] = useState(true);
 

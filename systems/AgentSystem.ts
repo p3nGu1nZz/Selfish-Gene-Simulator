@@ -3,7 +3,7 @@ import { world, agents, food } from '../ecs';
 import { Entity, SimulationParams } from '../types';
 import { WORLD_SIZE, MAX_POPULATION, AGENT_RADIUS_BASE, MAX_SPEED_BASE, SENSOR_RADIUS } from '../constants';
 import { spawnParticle } from '../entities/Particle';
-import { spawnAgent, mutateGenome } from '../entities/Agent';
+import { spawnAgent, mutateGenome, generateName } from '../entities/Agent';
 
 const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 const tempVec = new Vector3();
@@ -57,7 +57,7 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         const distToAgent = Math.sqrt(nearestAgentDist);
         const interactionRadius = (agent.genes.size + (nearestAgent?.agent?.genes.size || 1)) * AGENT_RADIUS_BASE;
 
-        // 3. Interaction (Physics & Genes)
+        // 3. Interaction (Physics, Genes, Mating)
         if (nearestAgent && distToAgent < interactionRadius && nearestAgent.agent && nearestAgent.velocity) {
              const other = nearestAgent;
              const otherAgent = other.agent!;
@@ -65,6 +65,7 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
              const overlap = interactionRadius - distToAgent;
              const normal = tempVec.subVectors(position, other.position).normalize();
              
+             // Physics push
              const massA = agent.genes.size;
              const massB = otherAgent.genes.size;
              const totalMass = massA + massB;
@@ -79,19 +80,66 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
              velocity.add(normal.clone().multiplyScalar(bumpForce / massA));
              nearestAgent.velocity!.sub(normal.clone().multiplyScalar(bumpForce / massB));
 
+             // Selfishness Interactions
              const mySelfish = agent.genes.selfishness > 0.5;
              const otherSelfish = otherAgent.genes.selfishness > 0.5;
 
              if (mySelfish && otherSelfish) {
+                 // Fight
                  const damage = 20 * dt;
                  agent.energy -= damage;
                  otherAgent.energy -= damage;
                  velocity.add(normal.clone().multiplyScalar(10 * dt));
              } else if (mySelfish && !otherSelfish) {
+                 // Steal
                  const steal = 15 * dt;
                  if (otherAgent.energy > steal) {
                      agent.energy += steal;
                      otherAgent.energy -= steal;
+                 }
+             }
+
+             // --- Mating Logic ---
+             // Only process mating if I am the "lower ID" to prevent double processing in the pair
+             if (entity.id < other.id) {
+                 const matingCooldown = 50; // Ticks
+                 const MATURITY_AGE = 200;
+
+                 const canMate = (a: typeof agent) => 
+                    a.energy > params.reproductionThreshold && 
+                    a.age > MATURITY_AGE && 
+                    (a.age - a.lastMated) > matingCooldown;
+
+                 if (canMate(agent) && canMate(otherAgent) && allAgents.length < MAX_POPULATION) {
+                     // Mating successful
+                     agent.lastMated = agent.age;
+                     otherAgent.lastMated = otherAgent.age;
+                     
+                     // Cost
+                     agent.energy *= 0.6;
+                     otherAgent.energy *= 0.6;
+
+                     // Genetics: Mix genes (simple averaging + mutation)
+                     const mixedGenes = {
+                         selfishness: (agent.genes.selfishness + otherAgent.genes.selfishness) / 2,
+                         speed: (agent.genes.speed + otherAgent.genes.speed) / 2,
+                         size: (agent.genes.size + otherAgent.genes.size) / 2,
+                         mutationRate: (agent.genes.mutationRate + otherAgent.genes.mutationRate) / 2,
+                         hue: 0
+                     };
+                     
+                     const offspringGenes = mutateGenome(mixedGenes, params.mutationMagnitude * 10 * mixedGenes.mutationRate);
+                     const offspringName = generateName(agent, otherAgent);
+                     const offspringEnergy = 80; // Starting energy
+
+                     spawnParticle(position.clone().lerp(other.position, 0.5), 'heart');
+                     
+                     spawnAgent(
+                        position.clone().lerp(other.position, 0.5),
+                        offspringGenes,
+                        offspringEnergy,
+                        offspringName
+                     );
                  }
              }
         }
@@ -136,18 +184,5 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         // Clamp
         position.x = Math.max(-WORLD_SIZE/2, Math.min(WORLD_SIZE/2, position.x));
         position.z = Math.max(-WORLD_SIZE/2, Math.min(WORLD_SIZE/2, position.z));
-
-        // 5. Reproduction
-        if (agent.energy > params.reproductionThreshold && allAgents.length < MAX_POPULATION) {
-            agent.energy *= 0.5;
-            const offspringGenes = mutateGenome(agent.genes, params.mutationMagnitude * 10 * agent.genes.mutationRate);
-            spawnParticle(position, 'birth');
-            
-            spawnAgent(
-                position.clone().add(new Vector3(rand(-1,1), 0, rand(-1,1))),
-                offspringGenes,
-                agent.energy
-            ).velocity!.copy(velocity).multiplyScalar(-1);
-        }
     }
 };

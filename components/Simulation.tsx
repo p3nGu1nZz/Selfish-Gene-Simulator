@@ -1,8 +1,8 @@
 import React, { useRef, useMemo, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Color, DynamicDrawUsage, BufferGeometry, BufferAttribute, Vector3 } from 'three';
+import { InstancedMesh, Object3D, Color, DynamicDrawUsage, BufferGeometry, Shape, DoubleSide, AdditiveBlending, Mesh, CapsuleGeometry } from 'three';
 import { SimulationParams, ViewMode, Entity } from '../types';
-import { world, agents, food, particles, clearWorld } from '../ecs';
+import { agents, food, particles, clearWorld } from '../ecs';
 import { AgentSystem, FoodSystem, ParticleSystem } from '../systems';
 import { spawnAgent, spawnFood, resetIds } from '../entities';
 import { WORLD_SIZE, MAX_POPULATION, AGENT_RADIUS_BASE } from '../constants';
@@ -40,6 +40,17 @@ const getAgentColorRGB = (agentData: any, viewMode: ViewMode): {r: number, g: nu
     return { r, g, b };
 }
 
+// Precompute Heart Geometry
+const heartShape = new Shape();
+const x = 0, y = 0;
+heartShape.moveTo(x + 0.25, y + 0.25);
+heartShape.bezierCurveTo(x + 0.25, y + 0.25, x + 0.20, y, x, y);
+heartShape.bezierCurveTo(x - 0.30, y, x - 0.30, y + 0.35, x - 0.30, y + 0.35);
+heartShape.bezierCurveTo(x - 0.30, y + 0.55, x - 0.10, y + 0.77, x + 0.25, y + 0.95);
+heartShape.bezierCurveTo(x + 0.60, y + 0.77, x + 0.80, y + 0.55, x + 0.80, y + 0.35);
+heartShape.bezierCurveTo(x + 0.80, y + 0.35, x + 0.80, y, x + 0.50, y);
+heartShape.bezierCurveTo(x + 0.35, y, x + 0.25, y + 0.25, x + 0.25, y + 0.25);
+
 export const Simulation: React.FC<SimulationProps> = ({ 
     params, 
     paused, 
@@ -55,8 +66,21 @@ export const Simulation: React.FC<SimulationProps> = ({
   const agentsMeshRef = useRef<InstancedMesh>(null);
   const foodMeshRef = useRef<InstancedMesh>(null);
   const particleMeshRef = useRef<InstancedMesh>(null);
+  const heartMeshRef = useRef<InstancedMesh>(null);
   const energyBarMeshRef = useRef<InstancedMesh>(null);
   const trailGeoRef = useRef<BufferGeometry>(null);
+
+  // Fallback Geometry (Capsule) since external model failed to load
+  const agentGeometry = useMemo(() => {
+    // CapsuleGeometry(radius, length, capSubdivisions, radialSegments)
+    const geo = new CapsuleGeometry(AGENT_RADIUS_BASE * 0.8, AGENT_RADIUS_BASE * 1.5, 4, 16);
+    // Rotate to align with forward direction (Z-axis)
+    geo.rotateX(Math.PI / 2);
+    return geo;
+  }, []);
+
+  // We use this to safely access entities inside event handlers without closure staleness
+  const interactionRef = useRef<Entity[]>([]);
 
   const tempObj = useMemo(() => new Object3D(), []);
   const tempColor = useMemo(() => new Color(), []);
@@ -89,7 +113,6 @@ export const Simulation: React.FC<SimulationProps> = ({
   // Main Loop
   useFrame((state, delta) => {
     const dt = paused ? 0 : Math.min(delta, 0.1) * params.simulationSpeed;
-    const particleDt = Math.min(delta, 0.1); 
 
     if (!paused) {
         // --- Run ECS Systems ---
@@ -97,7 +120,7 @@ export const Simulation: React.FC<SimulationProps> = ({
         AgentSystem(dt, params, (e) => getAgentColorRGB(e.agent!, viewMode));
     }
     
-    // Particles update even if paused (optional, but lets stick to logic being paused)
+    // Particles update even if paused
     if (!paused) {
         ParticleSystem(dt);
     }
@@ -110,24 +133,37 @@ export const Simulation: React.FC<SimulationProps> = ({
         const barMesh = energyBarMeshRef.current;
         const allAgents = agents.entities;
         
+        // Update interaction ref for click handlers
+        interactionRef.current = allAgents;
+
         mesh.count = allAgents.length;
         if (barMesh) barMesh.count = showEnergyBars ? allAgents.length : 0;
 
         let trailVertexIndex = 0;
         let totalSelfishness = 0;
         
-        // Map entity ID to array index for interaction mapping
-        // We rely on the order of agents.entities staying consistent within the frame render
-        
         for (let i = 0; i < allAgents.length; i++) {
             const entity = allAgents[i];
-            const { position, agent } = entity;
+            const { position, agent, velocity } = entity;
             if(!agent) continue;
 
             // Update Instance Matrix
             tempObj.position.copy(position);
             const scale = agent.genes.size;
             tempObj.scale.set(scale, scale, scale);
+            
+            // Rotate towards velocity to face movement direction
+            if (velocity && velocity.lengthSq() > 0.001) {
+                // Look at point = current position + velocity vector
+                tempObj.lookAt(
+                    position.x + velocity.x, 
+                    position.y + velocity.y, 
+                    position.z + velocity.z
+                );
+            } else {
+                tempObj.rotation.set(0,0,0);
+            }
+
             tempObj.updateMatrix();
             mesh.setMatrixAt(i, tempObj.matrix);
             
@@ -147,8 +183,10 @@ export const Simulation: React.FC<SimulationProps> = ({
                 barMesh.setColorAt(i, tempColor);
 
                 tempObj.position.copy(position);
-                tempObj.position.y += (agent.genes.size * AGENT_RADIUS_BASE) + 0.8;
+                tempObj.position.y += (agent.genes.size * AGENT_RADIUS_BASE) + 1.2; 
                 tempObj.scale.set(Math.max(0.01, energyRatio), 1, 1);
+                // Reset rotation for the bar so it's always flat/aligned to world
+                tempObj.rotation.set(0, 0, 0); 
                 tempObj.updateMatrix();
                 barMesh.setMatrixAt(i, tempObj.matrix);
             }
@@ -219,32 +257,83 @@ export const Simulation: React.FC<SimulationProps> = ({
         for (let i = 0; i < allFood.length; i++) {
             tempObj.position.copy(allFood[i].position);
             tempObj.scale.set(1, 1, 1);
+            tempObj.rotation.set(0,0,0);
             tempObj.updateMatrix();
             mesh.setMatrixAt(i, tempObj.matrix);
         }
         mesh.instanceMatrix.needsUpdate = true;
     }
 
-    // 3. Sync Particles
-    if (particleMeshRef.current) {
-        const mesh = particleMeshRef.current;
+    // 3. Sync Particles (Split into Hearts and Standard Particles)
+    if (particleMeshRef.current && heartMeshRef.current) {
+        const pMesh = particleMeshRef.current;
+        const hMesh = heartMeshRef.current;
         const allParticles = particles.entities;
-        mesh.count = allParticles.length;
+        
+        let pCount = 0;
+        let hCount = 0;
+
         for (let i = 0; i < allParticles.length; i++) {
             const ent = allParticles[i];
             const p = ent.particle!;
+            
             tempObj.position.copy(ent.position);
             const scale = p.scale * (p.life / p.maxLife);
             tempObj.scale.set(scale, scale, scale);
-            tempObj.updateMatrix();
-            mesh.setMatrixAt(i, tempObj.matrix);
-            mesh.setColorAt(i, p.color);
+            
+            if (p.type === 'heart') {
+                // Hearts face camera roughly or just face up + rotation
+                // Simple billboard-ish behavior: look at camera
+                tempObj.lookAt(state.camera.position);
+                // Then add some local spin
+                tempObj.rotateZ(p.rotation || 0);
+                tempObj.updateMatrix();
+                
+                hMesh.setMatrixAt(hCount, tempObj.matrix);
+                hMesh.setColorAt(hCount, p.color);
+                hCount++;
+            } else {
+                // Standard particles
+                tempObj.rotation.set(0,0,0);
+                tempObj.updateMatrix();
+
+                pMesh.setMatrixAt(pCount, tempObj.matrix);
+                pMesh.setColorAt(pCount, p.color);
+                pCount++;
+            }
         }
-        mesh.instanceMatrix.needsUpdate = true;
-        if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+
+        pMesh.count = pCount;
+        pMesh.instanceMatrix.needsUpdate = true;
+        if (pMesh.instanceColor) pMesh.instanceColor.needsUpdate = true;
+
+        hMesh.count = hCount;
+        hMesh.instanceMatrix.needsUpdate = true;
+        if (hMesh.instanceColor) hMesh.instanceColor.needsUpdate = true;
     }
 
   });
+
+  // Handler for interaction
+  const handleInteract = (instanceId: number | undefined) => {
+    if (instanceId !== undefined) {
+        const entity = interactionRef.current[instanceId];
+        if (entity) {
+             onSelectAgent(entity);
+        }
+    }
+  };
+  
+  const handleHover = (instanceId: number | undefined) => {
+      if (instanceId !== undefined) {
+          const entity = interactionRef.current[instanceId];
+          if (entity && entity !== hoveredAgent) {
+              onHoverAgent(entity);
+          }
+      } else {
+          onHoverAgent(null);
+      }
+  };
 
   return (
     <group>
@@ -266,23 +355,15 @@ export const Simulation: React.FC<SimulationProps> = ({
         receiveShadow
         onClick={(e) => {
              e.stopPropagation();
-             if (e.instanceId !== undefined) {
-                 const entities = agents.entities;
-                 if (entities[e.instanceId]) onSelectAgent(entities[e.instanceId]);
-             }
+             handleInteract(e.instanceId);
         }}
         onPointerMove={(e) => {
             e.stopPropagation();
-            if (e.instanceId !== undefined) {
-                const entities = agents.entities;
-                if (entities[e.instanceId] && entities[e.instanceId] !== hoveredAgent) {
-                     onHoverAgent(entities[e.instanceId]);
-                }
-            }
+            handleHover(e.instanceId);
         }}
         onPointerOut={() => onHoverAgent(null)}
+        geometry={agentGeometry}
       >
-        <sphereGeometry args={[AGENT_RADIUS_BASE, 16, 16]} />
         <meshStandardMaterial roughness={0.4} metalness={0.5} />
       </instancedMesh>
 
@@ -294,19 +375,11 @@ export const Simulation: React.FC<SimulationProps> = ({
             frustumCulled={false}
             onClick={(e) => {
                 e.stopPropagation();
-                if (e.instanceId !== undefined) {
-                    const entities = agents.entities;
-                    if (entities[e.instanceId]) onSelectAgent(entities[e.instanceId]);
-                }
+                handleInteract(e.instanceId);
             }}
             onPointerMove={(e) => {
                 e.stopPropagation();
-                if (e.instanceId !== undefined) {
-                    const entities = agents.entities;
-                    if (entities[e.instanceId] && entities[e.instanceId] !== hoveredAgent) {
-                         onHoverAgent(entities[e.instanceId]);
-                    }
-                }
+                handleHover(e.instanceId);
             }}
             onPointerOut={() => onHoverAgent(null)}
         >
@@ -315,14 +388,36 @@ export const Simulation: React.FC<SimulationProps> = ({
         </instancedMesh>
       )}
 
-      {/* Particles */}
+      {/* Standard Particles */}
       <instancedMesh
         ref={particleMeshRef}
         args={[undefined, undefined, 2000]}
         frustumCulled={false}
       >
-          <boxGeometry args={[1, 1, 1]} />
-          <meshBasicMaterial transparent opacity={0.8} />
+          <boxGeometry args={[0.7, 0.7, 0.7]} />
+          <meshBasicMaterial 
+            transparent 
+            opacity={0.8} 
+            blending={AdditiveBlending} 
+            depthWrite={false}
+          />
+      </instancedMesh>
+
+      {/* Heart Particles */}
+      <instancedMesh
+        ref={heartMeshRef}
+        args={[undefined, undefined, 500]}
+        frustumCulled={false}
+      >
+          <shapeGeometry args={[heartShape]} />
+          <meshBasicMaterial 
+            color="#ff69b4"
+            side={DoubleSide}
+            transparent 
+            opacity={0.9} 
+            blending={AdditiveBlending} 
+            depthWrite={false}
+          />
       </instancedMesh>
 
       {/* Trails */}
@@ -343,7 +438,7 @@ export const Simulation: React.FC<SimulationProps> = ({
                 usage={DynamicDrawUsage}
             />
           </bufferGeometry>
-          <lineBasicMaterial vertexColors opacity={0.6} transparent />
+          <lineBasicMaterial vertexColors opacity={0.6} transparent blending={AdditiveBlending} />
       </lineSegments>
 
       {/* Food */}
@@ -377,6 +472,8 @@ export const Simulation: React.FC<SimulationProps> = ({
                 color={selectedAgent ? "#3b82f6" : "white"} 
                 opacity={0.8} 
                 transparent 
+                blending={AdditiveBlending}
+                side={2} // DoubleSide
              />
           </mesh>
       )}

@@ -56,15 +56,20 @@ const LiveInspector: React.FC<{ agent: Entity, selectedAgentId: number | undefin
     const data = agent.agent;
 
     return (
-        <div className="absolute top-4 right-4 z-10 w-64 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
-            <div className="flex items-center justify-between gap-3 mb-4 border-b border-white/10 pb-3">
+        <div className="absolute top-4 right-4 z-10 w-72 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
+            <div className="flex items-start justify-between gap-3 mb-4 border-b border-white/10 pb-3">
                 <div className="flex items-center gap-3">
-                    <div className="p-2 bg-white/10 rounded-full">
+                    <div className="p-2 bg-white/10 rounded-full mt-1">
                         <Microscope size={20} className="text-blue-400" />
                     </div>
                     <div>
-                        <h2 className="font-bold text-sm">Agent #{agent.id}</h2>
-                        <p className="text-[10px] text-gray-400 capitalize">{data.state.replace('_', ' ')}</p>
+                        <h2 className="font-bold text-sm text-white leading-tight">
+                            {data.name.first} {data.name.last}
+                        </h2>
+                        <div className="flex items-center gap-2">
+                            <span className="text-[10px] text-gray-500 font-mono">#{agent.id}</span>
+                            <span className="text-[10px] text-gray-400 capitalize bg-white/5 px-1.5 py-0.5 rounded-sm">{data.state.replace('_', ' ')}</span>
+                        </div>
                     </div>
                 </div>
                 {selectedAgentId === agent.id && (
@@ -72,7 +77,7 @@ const LiveInspector: React.FC<{ agent: Entity, selectedAgentId: number | undefin
                         onClick={() => setSelectedAgent(null)}
                         className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1 border border-red-500/30 px-2 py-1 rounded-md bg-red-500/10"
                     >
-                        <X size={12} /> Stop
+                        <X size={12} />
                     </button>
                 )}
             </div>
@@ -93,7 +98,7 @@ const LiveInspector: React.FC<{ agent: Entity, selectedAgentId: number | undefin
                     <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">
                         <Clock size={10} /> Age
                     </div>
-                    <div className="text-sm font-mono">{data.age.toFixed(0)}</div>
+                    <div className="text-sm font-mono">{data.age.toFixed(0)} <span className="text-[10px] text-gray-500">ticks</span></div>
                 </div>
                  <div className="bg-white/5 p-2 rounded-lg border border-white/5">
                     <div className="flex items-center gap-1 text-[10px] text-gray-400 uppercase tracking-wider mb-0.5">
