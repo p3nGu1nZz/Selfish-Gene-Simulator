@@ -1,0 +1,5 @@
+{
+  "name": "Selfish Gene Simulator",
+  "description": "An interactive 3D simulation of evolution, morphogenesis, and population dynamics based on Selfish Gene theory.",
+  "requestFramePermissions": []
+}
