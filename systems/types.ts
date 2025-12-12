@@ -1,6 +1,6 @@
 import { Vector3, Color } from 'three';
 
-export type ViewMode = 'selfishness' | 'speed' | 'size' | 'mutation';
+export type ViewMode = 'selfishness' | 'speed' | 'size' | 'mutation' | 'affinity';
 
 export interface Genome {
   selfishness: number;
@@ -16,37 +16,51 @@ export interface AgentData {
   genes: Genome;
   energy: number;
   age: number;
-  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting';
+  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting' | 'digging' | 'circling' | 'sleeping';
   target: Vector3 | null;
   trail: Vector3[];
-  lastMated: number; // Time of last mating to prevent spam
+  lastMated: number; 
   heading: Vector3;
   hopTimer: number;
+  
+  // New Social & behavioral props
+  fear: number; // 0 to 100
+  affinity: Record<number, number>; // Map of AgentID -> affinity score (-100 to 100)
+  ownedBurrowId: number | null;
+  currentBurrowId: number | null; // If inside a burrow
+  digTimer: number; // Progress for digging
 }
 
 export interface FoodData {
   value: number;
 }
 
+export interface BurrowData {
+  ownerId: number;
+  occupants: number[];
+  radius: number;
+}
+
 export interface ParticleData {
-  type: 'particle' | 'heart';
+  type: 'particle' | 'heart' | 'dirt' | 'zzz';
   life: number;
   maxLife: number;
   color: Color;
   scale: number;
-  rotation?: number; // For hearts
+  rotation?: number; 
 }
 
 // The Main ECS Entity Type
 export type Entity = {
   id: number;
-  position: Vector3; // All physical entities have a position
-  velocity?: Vector3; // Agents and Particles have velocity
+  position: Vector3; 
+  velocity?: Vector3; 
   
-  // Components (Optional based on entity type)
+  // Components 
   agent?: AgentData;
   food?: FoodData;
   particle?: ParticleData;
+  burrow?: BurrowData;
   
   // Transient/System flags
   deleted?: boolean;

@@ -1,4 +1,4 @@
-import { SimulationParams } from '../types';
+import { SimulationParams } from '../systems/types';
 
 export const WORLD_SIZE = 200;
 export const MAX_POPULATION = 600;
@@ -6,12 +6,12 @@ export const MAX_TRAIL_POINTS = 20;
 
 export const DEFAULT_PARAMS: SimulationParams = {
   initialPop: 40,
-  foodSpawnRate: 2, // New food per tick (roughly)
+  foodSpawnRate: 4, // Increased food spawn
   foodValue: 40,
   mutationMagnitude: 0.1,
-  energyCostPerTick: 0.1,
-  reproductionThreshold: 120, // Energy needed to reproduce
-  maxAge: 2000,
+  energyCostPerTick: 0.05, // Reduced energy cost
+  reproductionThreshold: 80, // Lower threshold to reproduce
+  maxAge: 3000, // Longer life
   simulationSpeed: 1.0,
 };
 

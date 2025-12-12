@@ -1,7 +1,7 @@
 import React from 'react';
 import { useFrame } from '@react-three/fiber';
 import { FoodSystem, AgentSystem, ParticleSystem } from './index';
-import { SimulationParams, ViewMode } from '../types';
+import { SimulationParams, ViewMode } from './types';
 import { agents } from '../core/ecs';
 import { getAgentColorRGB } from '../core/utils';
 

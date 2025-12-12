@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SimulationParams, ViewMode, Entity } from '../types';
+import { SimulationParams, ViewMode, Entity } from '../systems/types';
 import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search } from 'lucide-react';
 
 interface ControlPanelProps {

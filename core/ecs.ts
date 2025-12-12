@@ -1,5 +1,5 @@
 import { World } from 'miniplex';
-import { Entity } from '../types';
+import { Entity } from '../systems/types';
 
 // Create the global world
 export const world = new World<Entity>();
@@ -7,6 +7,7 @@ export const world = new World<Entity>();
 // Create buckets (archetypes) for fast querying
 export const agents = world.with('position', 'velocity', 'agent');
 export const food = world.with('position', 'food');
+export const burrows = world.with('position', 'burrow');
 export const particles = world.with('position', 'velocity', 'particle');
 
 // Helper to clear world

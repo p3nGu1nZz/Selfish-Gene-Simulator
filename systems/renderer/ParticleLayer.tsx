@@ -1,7 +1,8 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Shape, DoubleSide, AdditiveBlending } from 'three';
+import { InstancedMesh, Object3D, Shape, DoubleSide, AdditiveBlending, MeshBasicMaterial } from 'three';
 import { particles } from '../../core/ecs';
+import { Text } from '@react-three/drei';
 
 const heartShape = new Shape();
 const x = 0, y = 0;
@@ -16,21 +17,27 @@ heartShape.bezierCurveTo(x + 0.35, y, x + 0.25, y + 0.25, x + 0.25, y + 0.25);
 export const ParticleLayer: React.FC = () => {
     const particleMeshRef = useRef<InstancedMesh>(null);
     const heartMeshRef = useRef<InstancedMesh>(null);
+    const zzzRef = useRef<InstancedMesh>(null);
     const tempObj = useMemo(() => new Object3D(), []);
 
     useFrame((state) => {
-        if (particleMeshRef.current && heartMeshRef.current) {
+        if (particleMeshRef.current && heartMeshRef.current && zzzRef.current) {
             const pMesh = particleMeshRef.current;
             const hMesh = heartMeshRef.current;
+            const zMesh = zzzRef.current;
+            
             const allParticles = particles.entities;
             let pCount = 0;
             let hCount = 0;
+            let zCount = 0;
+            
             for (let i = 0; i < allParticles.length; i++) {
                 const ent = allParticles[i];
                 const p = ent.particle!;
                 tempObj.position.copy(ent.position);
                 const scale = p.scale * (p.life / p.maxLife);
                 tempObj.scale.set(scale, scale, scale);
+                
                 if (p.type === 'heart') {
                     tempObj.lookAt(state.camera.position);
                     tempObj.rotateZ(p.rotation || 0);
@@ -38,6 +45,14 @@ export const ParticleLayer: React.FC = () => {
                     hMesh.setMatrixAt(hCount, tempObj.matrix);
                     hMesh.setColorAt(hCount, p.color);
                     hCount++;
+                } else if (p.type === 'zzz') {
+                    tempObj.lookAt(state.camera.position);
+                    // Wiggle up
+                    tempObj.position.x += Math.sin(state.clock.elapsedTime * 5 + i) * 0.1;
+                    tempObj.updateMatrix();
+                    zMesh.setMatrixAt(zCount, tempObj.matrix);
+                    zMesh.setColorAt(zCount, p.color);
+                    zCount++;
                 } else {
                     tempObj.rotation.set(0,0,0);
                     tempObj.updateMatrix();
@@ -46,12 +61,18 @@ export const ParticleLayer: React.FC = () => {
                     pCount++;
                 }
             }
+            
             pMesh.count = pCount;
             pMesh.instanceMatrix.needsUpdate = true;
             if (pMesh.instanceColor) pMesh.instanceColor.needsUpdate = true;
+            
             hMesh.count = hCount;
             hMesh.instanceMatrix.needsUpdate = true;
             if (hMesh.instanceColor) hMesh.instanceColor.needsUpdate = true;
+
+            zMesh.count = zCount;
+            zMesh.instanceMatrix.needsUpdate = true;
+            if (zMesh.instanceColor) zMesh.instanceColor.needsUpdate = true;
         }
     });
 
@@ -65,6 +86,11 @@ export const ParticleLayer: React.FC = () => {
                 <shapeGeometry args={[heartShape]} />
                 <meshBasicMaterial color="#ff69b4" side={DoubleSide} transparent opacity={0.9} blending={AdditiveBlending} depthWrite={false} />
             </instancedMesh>
+            {/* Simple representation for Zzz - using white quads for now, ideally text but instancing text is hard */}
+             <instancedMesh ref={zzzRef} args={[undefined, undefined, 200]} frustumCulled={false}>
+                 <planeGeometry args={[1, 1]} />
+                 <meshBasicMaterial color="white" side={DoubleSide} transparent opacity={0.8} />
+             </instancedMesh>
         </>
     );
 };

@@ -1,7 +1,7 @@
 import React, { useMemo, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, Color } from 'three';
-import { SimulationParams, ViewMode, Entity } from '../types';
+import { SimulationParams, ViewMode, Entity } from '../systems/types';
 import { clearWorld } from '../core/ecs';
 import { spawnAgent, spawnFood, resetIds } from '../entities';
 import { LogicSystem } from '../core/LogicSystem';

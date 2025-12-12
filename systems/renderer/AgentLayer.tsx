@@ -69,27 +69,26 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 const { position, agent } = entity;
                 if (!agent) continue;
 
-                // Scale Logic: Increased to 3.5x for better visibility
-                const scale = agent.genes.size * 3.5;
+                // VISIBILITY CHECK: If in burrow, scale to 0 or move away
+                const isInBurrow = agent.currentBurrowId !== null;
+                const scale = isInBurrow ? 0 : agent.genes.size * 3.5;
                 
                 // Animation Logic
-                // Sync animation perfectly with the hop timer from AgentSystem
                 let hopY = 0;
                 let bodyTilt = 0;
                 
-                // Check if actively hopping (timer < duration AND not resting)
-                if (agent.state !== 'resting' && agent.hopTimer < HOP_DURATION) {
-                    const progress = agent.hopTimer / HOP_DURATION; // 0 to 1
-                    
-                    // Parabolic arc for jump height
-                    // Sin(0) -> 0, Sin(PI/2) -> 1, Sin(PI) -> 0
-                    hopY = Math.sin(progress * Math.PI) * scale * 0.8;
-                    
-                    // Tilt forward slightly during jump
-                    bodyTilt = -Math.sin(progress * Math.PI) * 0.2;
-                } else if (agent.state === 'resting') {
-                    // Slight breathing animation when resting
-                    hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
+                if (!isInBurrow) {
+                    if (agent.state !== 'resting' && agent.state !== 'sleeping' && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
+                        const progress = agent.hopTimer / HOP_DURATION;
+                        hopY = Math.sin(progress * Math.PI) * scale * 0.8;
+                        bodyTilt = -Math.sin(progress * Math.PI) * 0.2;
+                    } else if (agent.state === 'resting' || agent.state === 'sleeping') {
+                        hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
+                    } else if (agent.state === 'digging') {
+                        // Rapid bobbing
+                         hopY = Math.sin(state.clock.elapsedTime * 20) * 0.1 * scale;
+                         bodyTilt = Math.PI / 4; // Head down
+                    }
                 }
 
                 const currentPos = position.clone();
@@ -98,7 +97,6 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 const dummyBase = new Object3D();
                 dummyBase.position.copy(currentPos);
                 
-                // Orientation: Look at heading
                 const lookTarget = currentPos.clone().add(agent.heading);
                 dummyBase.lookAt(lookTarget);
                 dummyBase.rotateX(bodyTilt);
@@ -119,36 +117,41 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 }
 
                 // Energy Bar
-                if (energyBarMeshRef.current && showEnergyBars) {
+                if (energyBarMeshRef.current && showEnergyBars && !isInBurrow) {
                     const energyRatio = Math.min(agent.energy / 100, 1.0);
                     const barColor = new Color().setHSL(energyRatio * 0.33, 1.0, 0.5); 
                     tempObj.position.copy(position);
-                    // Adjust bar height higher due to scale increase
                     tempObj.position.y += (scale * AGENT_RADIUS_BASE * 1.5) + 2.5; 
                     tempObj.rotation.set(0,0,0);
                     tempObj.scale.set(Math.max(0.01, energyRatio), 1, 1);
                     tempObj.updateMatrix();
                     energyBarMeshRef.current.setMatrixAt(i, tempObj.matrix);
                     energyBarMeshRef.current.setColorAt(i, barColor);
+                } else if (energyBarMeshRef.current) {
+                     // Hide bar if in burrow
+                     tempObj.scale.set(0,0,0);
+                     tempObj.updateMatrix();
+                     energyBarMeshRef.current.setMatrixAt(i, tempObj.matrix);
                 }
             }
 
             // Procedural Parts Update (if not using external model)
             if (!hasExternal && earsRef.current && eyesRef.current && pawsRef.current) {
-                // ... (Logic mostly same, just ensuring scale prop is used correctly) ...
                 for (let i = 0; i < count; i++) {
                      const entity = allAgents[i];
                      if(!entity.agent) continue;
                      const { position, agent } = entity;
-                     const scale = agent.genes.size * 3.5;
+                     const isInBurrow = agent.currentBurrowId !== null;
+                     const scale = isInBurrow ? 0 : agent.genes.size * 3.5;
                      
-                     // Re-calc height for procedural parts
                      let hopY = 0;
-                     if (agent.state !== 'resting' && agent.hopTimer < HOP_DURATION) {
-                         const progress = agent.hopTimer / HOP_DURATION;
-                         hopY = Math.sin(progress * Math.PI) * scale * 0.8;
-                     } else if (agent.state === 'resting') {
-                         hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
+                     if (!isInBurrow) {
+                         if (agent.state !== 'resting' && agent.hopTimer < HOP_DURATION) {
+                             const progress = agent.hopTimer / HOP_DURATION;
+                             hopY = Math.sin(progress * Math.PI) * scale * 0.8;
+                         } else if (agent.state === 'resting') {
+                             hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
+                         }
                      }
                      
                      const currentPos = position.clone();
@@ -160,7 +163,6 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                      const { r, g, b } = getAgentColorRGB(agent, viewMode);
                      tempColor.setRGB(r, g, b);
 
-                     // Procedural animation details (ear wiggle, etc)
                      const wiggle = Math.sin(state.clock.elapsedTime * 10 + entity.id) * 0.1;
 
                      updatePart(earsRef.current, i * 2, currentPos, dummyBase, scale, 

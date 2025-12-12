@@ -1,12 +1,13 @@
 import React from 'react';
 import { BufferGeometry, Material } from 'three';
-import { ViewMode, Entity } from '../types';
+import { ViewMode, Entity } from './types';
 import { EnvironmentLayer } from './renderer/EnvironmentLayer';
 import { InteractionLayer } from './renderer/InteractionLayer';
 import { AgentLayer } from './renderer/AgentLayer';
 import { TrailLayer } from './renderer/TrailLayer';
 import { FoodLayer } from './renderer/FoodLayer';
 import { ParticleLayer } from './renderer/ParticleLayer';
+import { BurrowLayer } from './renderer/BurrowLayer';
 
 export interface RendererProps {
     paused: boolean;
@@ -33,6 +34,7 @@ export const RendererSystem: React.FC<RendererProps> = ({
     return (
         <group>
             <EnvironmentLayer onSelectAgent={onSelectAgent} />
+            <BurrowLayer />
             <InteractionLayer 
                 onHoverAgent={onHoverAgent}
                 hoveredAgent={hoveredAgent}

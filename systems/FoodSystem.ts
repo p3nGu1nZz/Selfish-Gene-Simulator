@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { world, food } from '../core/ecs';
-import { SimulationParams } from '../types';
+import { SimulationParams } from './types';
 import { spawnFood } from '../entities/Food';
 import { WORLD_SIZE } from '../core/constants';
 

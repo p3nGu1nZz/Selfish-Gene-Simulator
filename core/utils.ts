@@ -1,4 +1,4 @@
-import { ViewMode } from '../types';
+import { ViewMode } from '../systems/types';
 
 export const getAgentColorRGB = (agentData: any, viewMode: ViewMode): {r: number, g: number, b: number} => {
     let r, g, b;

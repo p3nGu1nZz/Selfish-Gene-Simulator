@@ -4,7 +4,7 @@ import { OrbitControls, Stats, Environment } from '@react-three/drei';
 import { Simulation } from './components/Simulation';
 import { ControlPanel } from './components/ControlPanel';
 import { DEFAULT_PARAMS } from './core/constants';
-import { SimulationParams, ViewMode, Entity } from './types';
+import { SimulationParams, ViewMode, Entity } from './systems/types';
 import { Vector3, Spherical, MathUtils, MOUSE } from 'three';
 
 // Error Boundary to catch 404s on the model loader
