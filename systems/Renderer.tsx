@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Color, DynamicDrawUsage, BufferGeometry, Shape, DoubleSide, AdditiveBlending, Matrix4, Vector3 as ThreeVector3, Quaternion } from 'three';
+import { InstancedMesh, Object3D, Color, DynamicDrawUsage, BufferGeometry, Shape, DoubleSide, AdditiveBlending, Matrix4, Vector3 as ThreeVector3, Quaternion, Material, MeshStandardMaterial } from 'three';
 import { ViewMode, Entity } from '../types';
 import { agents, food, particles } from '../ecs';
 import { WORLD_SIZE, MAX_POPULATION, AGENT_RADIUS_BASE, MAX_TRAIL_POINTS } from '../constants';
@@ -14,6 +14,8 @@ export interface RendererProps {
     selectedAgent: Entity | null;
     showEnergyBars: boolean;
     externalGeometry?: BufferGeometry;
+    foodGeometry?: BufferGeometry;
+    foodMaterial?: Material;
 }
 
 export const getAgentColorRGB = (agentData: any, viewMode: ViewMode): {r: number, g: number, b: number} => {
@@ -54,10 +56,13 @@ export const RendererSystem: React.FC<RendererProps> = ({
     onSelectAgent, 
     selectedAgent, 
     showEnergyBars,
-    externalGeometry 
+    externalGeometry,
+    foodGeometry,
+    foodMaterial
 }) => {
     // Refs
     const meshRef = useRef<InstancedMesh>(null);
+    const hitboxRef = useRef<InstancedMesh>(null); // Invisible large click targets
     const bodyRef = useRef<InstancedMesh>(null);
     const earsRef = useRef<InstancedMesh>(null);
     const tailRef = useRef<InstancedMesh>(null);
@@ -112,8 +117,10 @@ export const RendererSystem: React.FC<RendererProps> = ({
         const hasExternal = !!externalGeometry;
         const targetMesh = hasExternal ? meshRef.current : bodyRef.current;
         
-        if (targetMesh) {
+        if (targetMesh && hitboxRef.current) {
             targetMesh.count = allAgents.length;
+            hitboxRef.current.count = allAgents.length;
+
             if (earsRef.current) earsRef.current.count = allAgents.length * 2;
             if (tailRef.current) tailRef.current.count = allAgents.length;
             if (eyesRef.current) eyesRef.current.count = allAgents.length * 2;
@@ -130,7 +137,15 @@ export const RendererSystem: React.FC<RendererProps> = ({
                 const scale = agent.genes.size;
                 const speed = velocity ? velocity.length() : 0;
                 const isMoving = speed > 0.05;
-                const hopY = isMoving ? Math.abs(Math.sin(time * 15 + entity.id * 12.34)) * 0.5 * scale : 0;
+
+                // Improved Organic Hopping
+                let hopY = 0;
+                if (isMoving) {
+                    const hopFreq = 6 + (speed * 10); 
+                    const hopPhase = entity.id * 13.37;
+                    const rawHop = Math.sin(time * hopFreq + hopPhase);
+                    hopY = Math.pow(Math.abs(rawHop), 1.5) * 0.4 * scale; 
+                }
                 
                 const currentPos = position.clone();
                 currentPos.y += hopY;
@@ -148,6 +163,7 @@ export const RendererSystem: React.FC<RendererProps> = ({
                 }
 
                 if (hasExternal) {
+                    // Update Visual Mesh
                     tempObj.position.copy(currentPos);
                     tempObj.rotation.copy(dummyBase.rotation);
                     tempObj.scale.set(scale, scale, scale);
@@ -159,6 +175,18 @@ export const RendererSystem: React.FC<RendererProps> = ({
                     updatePart(bodyRef.current!, i, currentPos, dummyBase, scale, new ThreeVector3(0, 0.5, 0), new ThreeVector3(1, 1, 1));
                     bodyRef.current!.setColorAt(i, tempColor);
                 }
+
+                // Update Hitbox (Invisible, larger)
+                tempObj.position.copy(currentPos);
+                // Lift hitbox slightly so it centers on the body not feet
+                tempObj.position.y += 0.5 * scale; 
+                tempObj.rotation.copy(dummyBase.rotation);
+                // Extra generous scale for clicking
+                const hitScale = scale * 1.5; 
+                tempObj.scale.set(hitScale, hitScale, hitScale);
+                tempObj.updateMatrix();
+                hitboxRef.current.setMatrixAt(i, tempObj.matrix);
+
 
                 if (energyBarMeshRef.current && showEnergyBars) {
                     const energyRatio = Math.min(agent.energy / 100, 1.0);
@@ -209,7 +237,14 @@ export const RendererSystem: React.FC<RendererProps> = ({
                     const scale = agent.genes.size;
                     const speed = velocity ? velocity.length() : 0;
                     const isMoving = speed > 0.05;
-                    const hopY = isMoving ? Math.abs(Math.sin(time * 15 + entity.id * 12.34)) * 0.5 * scale : 0;
+                    
+                    let hopY = 0;
+                    if (isMoving) {
+                        const hopFreq = 6 + (speed * 10); 
+                        const hopPhase = entity.id * 13.37;
+                        const rawHop = Math.sin(time * hopFreq + hopPhase);
+                        hopY = Math.pow(Math.abs(rawHop), 1.5) * 0.4 * scale; 
+                    }
                     
                     const currentPos = position.clone();
                     currentPos.y += hopY;
@@ -262,6 +297,8 @@ export const RendererSystem: React.FC<RendererProps> = ({
             }
 
             targetMesh.instanceMatrix.needsUpdate = true;
+            hitboxRef.current.instanceMatrix.needsUpdate = true;
+            
             if (targetMesh.instanceColor) targetMesh.instanceColor.needsUpdate = true;
             if (energyBarMeshRef.current) {
                 energyBarMeshRef.current.instanceMatrix.needsUpdate = true;
@@ -281,8 +318,15 @@ export const RendererSystem: React.FC<RendererProps> = ({
             mesh.count = allFood.length;
             for (let i = 0; i < allFood.length; i++) {
                 tempObj.position.copy(allFood[i].position);
-                tempObj.scale.set(1, 1, 1);
-                tempObj.rotation.set(0,0,0);
+                if (foodGeometry) {
+                    // Adjust carrot: scale up and rotate to stand up or angle
+                    tempObj.scale.set(1.5, 1.5, 1.5);
+                    // Add some random rotation for variety
+                    tempObj.rotation.set(0, Math.random() * Math.PI, Math.PI / 4);
+                } else {
+                    tempObj.scale.set(1, 1, 1);
+                    tempObj.rotation.set(0,0,0);
+                }
                 tempObj.updateMatrix();
                 mesh.setMatrixAt(i, tempObj.matrix);
             }
@@ -346,11 +390,30 @@ export const RendererSystem: React.FC<RendererProps> = ({
     return (
         <group>
             {/* Ground */}
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.5, 0]} receiveShadow>
+            <mesh 
+                rotation={[-Math.PI / 2, 0, 0]} 
+                position={[0, -0.5, 0]} 
+                receiveShadow
+                onClick={(e) => { e.stopPropagation(); onSelectAgent(null); }}
+                onPointerOver={() => document.body.style.cursor = 'default'}
+            >
                 <planeGeometry args={[WORLD_SIZE, WORLD_SIZE]} />
                 <meshStandardMaterial color="#111" roughness={0.8} metalness={0.2} />
             </mesh>
             <gridHelper args={[WORLD_SIZE, 20, 0x444444, 0x222222]} />
+
+             {/* HITBOX LAYER - Invisible but interactive */}
+             <instancedMesh
+                ref={hitboxRef}
+                args={[undefined, undefined, MAX_POPULATION]}
+                visible={true} // Must be visible for raycasting
+                onClick={(e) => { e.stopPropagation(); handleInteract(e.instanceId); }}
+                onPointerMove={(e) => { e.stopPropagation(); handleHover(e.instanceId); }}
+                onPointerOut={() => onHoverAgent(null)}
+            >
+                <sphereGeometry args={[0.8, 8, 8]} /> {/* Larger radius for easier clicking */}
+                <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+            </instancedMesh>
 
             {/* Agents - External Model */}
             {externalGeometry && (
@@ -360,9 +423,6 @@ export const RendererSystem: React.FC<RendererProps> = ({
                     frustumCulled={false}
                     castShadow
                     receiveShadow
-                    onClick={(e) => { e.stopPropagation(); handleInteract(e.instanceId); }}
-                    onPointerMove={(e) => { e.stopPropagation(); handleHover(e.instanceId); }}
-                    onPointerOut={() => onHoverAgent(null)}
                 >
                     <meshStandardMaterial roughness={0.4} metalness={0.5} />
                 </instancedMesh>
@@ -378,9 +438,6 @@ export const RendererSystem: React.FC<RendererProps> = ({
                         frustumCulled={false}
                         castShadow
                         receiveShadow
-                        onClick={(e) => { e.stopPropagation(); handleInteract(e.instanceId); }}
-                        onPointerMove={(e) => { e.stopPropagation(); handleHover(e.instanceId); }}
-                        onPointerOut={() => onHoverAgent(null)}
                     >
                         <sphereGeometry args={[0.45, 16, 16]} />
                         <meshStandardMaterial roughness={0.5} metalness={0.1} />
@@ -418,8 +475,6 @@ export const RendererSystem: React.FC<RendererProps> = ({
                     ref={energyBarMeshRef}
                     args={[undefined, undefined, MAX_POPULATION]}
                     frustumCulled={false}
-                    onClick={(e) => { e.stopPropagation(); handleInteract(e.instanceId); }}
-                    onPointerMove={(e) => { e.stopPropagation(); handleHover(e.instanceId); }}
                 >
                     <boxGeometry args={[1.5, 0.15, 0.15]} />
                     <meshBasicMaterial />
@@ -448,10 +503,16 @@ export const RendererSystem: React.FC<RendererProps> = ({
             </lineSegments>
 
             {/* Food */}
-            <instancedMesh ref={foodMeshRef} args={[undefined, undefined, 1000]} frustumCulled={false}>
-                <boxGeometry args={[0.5, 0.5, 0.5]} />
-                <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.5} />
-            </instancedMesh>
+            {foodGeometry ? (
+                 <instancedMesh ref={foodMeshRef} args={[foodGeometry, undefined, 1000]} frustumCulled={false}>
+                    <primitive object={foodMaterial || new MeshStandardMaterial({ color: 'orange' })} attach="material" />
+                </instancedMesh>
+            ) : (
+                <instancedMesh ref={foodMeshRef} args={[undefined, undefined, 1000]} frustumCulled={false}>
+                    <boxGeometry args={[0.5, 0.5, 0.5]} />
+                    <meshStandardMaterial color="#fbbf24" emissive="#fbbf24" emissiveIntensity={0.5} />
+                </instancedMesh>
+            )}
 
             {/* Selection Ring */}
             {(hoveredAgent || selectedAgent) && (

@@ -5,14 +5,14 @@ import { SimulationParams, ViewMode } from '../types';
 import { agents } from '../ecs';
 import { getAgentColorRGB } from './Renderer';
 
-interface SimulationSystemProps {
+interface LogicSystemProps {
     params: SimulationParams;
     paused: boolean;
     onStatsUpdate: (count: number, avgSelfishness: number) => void;
     viewMode: ViewMode;
 }
 
-export const SimulationSystem: React.FC<SimulationSystemProps> = ({ params, paused, onStatsUpdate, viewMode }) => {
+export const LogicSystem: React.FC<LogicSystemProps> = ({ params, paused, onStatsUpdate, viewMode }) => {
     useFrame((state, delta) => {
         const dt = paused ? 0 : Math.min(delta, 0.1) * params.simulationSpeed;
         

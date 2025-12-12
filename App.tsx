@@ -5,7 +5,7 @@ import { Simulation } from './components/Simulation';
 import { ControlPanel } from './components/ControlPanel';
 import { DEFAULT_PARAMS, WORLD_SIZE } from './constants';
 import { SimulationParams, ViewMode, Entity } from './types';
-import { Vector3, Spherical } from 'three';
+import { Vector3, Spherical, MathUtils } from 'three';
 
 // Error Boundary to catch 404s on the model loader
 class SimulationErrorBoundary extends React.Component<
@@ -32,44 +32,47 @@ const CameraFollower = ({ selectedAgent }: { selectedAgent: Entity | null }) => 
   const { camera, controls } = useThree();
   
   useFrame((state, delta) => {
-    if (selectedAgent && controls) {
-      // @ts-ignore
-      const target = controls.target as Vector3;
-      const agentPos = selectedAgent.position;
-      
-      // 1. Smoothly interpolate the target to the agent's position
-      // This keeps the camera looking at the agent
-      const lerpSpeed = 4 * delta;
-      target.lerp(agentPos, lerpSpeed);
-      
-      // 2. Adjust camera position for better context (tilt and zoom)
-      // Calculate current offset from target
-      const offset = camera.position.clone().sub(target);
-      const spherical = new Spherical().setFromVector3(offset);
+    // @ts-ignore
+    const ctrl = controls; 
+    if(!ctrl) return;
 
-      // Desired configuration:
-      // Radius: ~30 units provides good context without being too far
-      // Phi: ~50 degrees (PI/3.5) gives a nice top-down diagonal view
-      const desiredRadius = 30;
-      const desiredPhi = Math.PI / 3.5; 
+    if (selectedAgent && selectedAgent.agent) {
+       const agentPos = selectedAgent.position;
+       // @ts-ignore
+       const currentTarget = ctrl.target as Vector3;
 
-      // Smoothly pull radius towards desired distance
-      spherical.radius += (desiredRadius - spherical.radius) * delta;
-      
-      // Smoothly pull angle up if we are looking too much from the side (high phi)
-      // We allow the user to rotate freely, but provide a gentle guide towards a better angle
-      if (spherical.phi > desiredPhi + 0.2) {
-         spherical.phi += (desiredPhi - spherical.phi) * delta;
-      }
-      
-      spherical.makeSafe();
+       // 1. Smoothly interpolate the target to the agent's position
+       // We calculate the delta so we can apply it to the camera as well (panning)
+       const alpha = 5 * delta;
+       const oldTarget = currentTarget.clone();
+       currentTarget.lerp(agentPos, alpha);
+       
+       const moveDelta = currentTarget.clone().sub(oldTarget);
+       camera.position.add(moveDelta);
+       
+       // 2. Zoom Effect
+       // Calculate offset from current target
+       const offset = camera.position.clone().sub(currentTarget);
+       const spherical = new Spherical().setFromVector3(offset);
 
-      // Apply the modified offset back to camera position
-      const newOffset = new Vector3().setFromSpherical(spherical);
-      camera.position.copy(target.clone().add(newOffset));
-      
-      // @ts-ignore
-      controls.update();
+       // Desired zoom distance
+       const TARGET_RADIUS = 20; 
+       
+       // Smoothly pull radius towards desired distance
+       if (Math.abs(spherical.radius - TARGET_RADIUS) > 0.1) {
+            spherical.radius = MathUtils.lerp(spherical.radius, TARGET_RADIUS, 2 * delta);
+       }
+       
+       // Ensure camera doesn't go below ground or too high
+       spherical.phi = Math.min(spherical.phi, Math.PI / 2 - 0.2);
+       spherical.makeSafe();
+
+       // Apply the modified offset back to camera position
+       const newPos = new Vector3().setFromSpherical(spherical).add(currentTarget);
+       camera.position.copy(newPos);
+       
+       // @ts-ignore
+       ctrl.update();
     }
   });
 

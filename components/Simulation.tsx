@@ -1,10 +1,10 @@
 import React, { useMemo, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { BufferGeometry, Mesh, CapsuleGeometry } from 'three';
+import { BufferGeometry, Mesh, CapsuleGeometry, Material } from 'three';
 import { SimulationParams, ViewMode, Entity } from '../types';
 import { clearWorld } from '../ecs';
 import { spawnAgent, spawnFood, resetIds } from '../entities';
-import { SimulationSystem } from '../systems/Simulation';
+import { LogicSystem } from '../systems/Simulation';
 import { RendererSystem } from '../systems/Renderer';
 
 interface SimulationProps {
@@ -24,7 +24,13 @@ interface SimulationProps {
 // --- Component: Simulation Root ---
 // Handles Initial Spawn and Orchestration
 
-const SimulationRoot: React.FC<SimulationProps & { externalGeometry?: BufferGeometry }> = ({ 
+interface SimulationRootProps extends SimulationProps {
+    externalGeometry?: BufferGeometry;
+    foodGeometry?: BufferGeometry;
+    foodMaterial?: Material;
+}
+
+const SimulationRoot: React.FC<SimulationRootProps> = ({ 
     params, 
     paused, 
     onStatsUpdate, 
@@ -35,7 +41,9 @@ const SimulationRoot: React.FC<SimulationProps & { externalGeometry?: BufferGeom
     onSelectAgent,
     selectedAgent,
     showEnergyBars,
-    externalGeometry
+    externalGeometry,
+    foodGeometry,
+    foodMaterial
 }) => {
   // Initialize World
   useEffect(() => {
@@ -49,7 +57,7 @@ const SimulationRoot: React.FC<SimulationProps & { externalGeometry?: BufferGeom
 
   return (
     <>
-      <SimulationSystem 
+      <LogicSystem 
           params={params} 
           paused={paused} 
           onStatsUpdate={onStatsUpdate} 
@@ -64,6 +72,8 @@ const SimulationRoot: React.FC<SimulationProps & { externalGeometry?: BufferGeom
           selectedAgent={selectedAgent}
           showEnergyBars={showEnergyBars}
           externalGeometry={externalGeometry}
+          foodGeometry={foodGeometry}
+          foodMaterial={foodMaterial}
       />
     </>
   );
@@ -71,19 +81,40 @@ const SimulationRoot: React.FC<SimulationProps & { externalGeometry?: BufferGeom
 
 // --- Model Loader Wrapper ---
 const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
-    const { scene } = useGLTF('/assets/rabbit_model.gltf');
+    const { scene: rabbitScene } = useGLTF('/assets/rabbit_model.gltf');
+    // Load carrot model - assuming standard structure in assets/carrot/
+    const { scene: carrotScene } = useGLTF('/assets/carrot/carrot.gltf');
     
-    const geometry = useMemo(() => {
+    const rabbitGeo = useMemo(() => {
         let geo: BufferGeometry | undefined;
-        scene.traverse((child) => {
+        rabbitScene.traverse((child) => {
             if ((child as Mesh).isMesh && !geo) {
                 geo = (child as Mesh).geometry;
             }
         });
         return geo || new CapsuleGeometry(0.5, 1);
-    }, [scene]);
+    }, [rabbitScene]);
 
-    return <SimulationRoot {...props} externalGeometry={geometry} />;
+    const { geometry: carrotGeo, material: carrotMat } = useMemo(() => {
+        let geo: BufferGeometry | undefined;
+        let mat: Material | undefined;
+        carrotScene.traverse((child) => {
+            if ((child as Mesh).isMesh && !geo) {
+                geo = (child as Mesh).geometry;
+                mat = (child as Mesh).material as Material;
+            }
+        });
+        return { geometry: geo, material: mat };
+    }, [carrotScene]);
+
+    return (
+        <SimulationRoot 
+            {...props} 
+            externalGeometry={rabbitGeo} 
+            foodGeometry={carrotGeo}
+            foodMaterial={carrotMat}
+        />
+    );
 };
 
 // --- Main Export ---
