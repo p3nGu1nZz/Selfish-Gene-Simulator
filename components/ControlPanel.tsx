@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SimulationParams, ViewMode, Entity } from '../systems/types';
-import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search } from 'lucide-react';
+import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search, Settings, ChevronLeft } from 'lucide-react';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -190,222 +190,238 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   setFollowZoom,
   resetCamera
 }) => {
+  const [isCollapsed, setIsCollapsed] = useState(false);
+
   const handleChange = (key: keyof SimulationParams, value: number) => {
     setParams((prev) => ({ ...prev, [key]: value }));
   };
 
   return (
     <>
-    {/* Left Panel: Global Controls & Stats */}
-    <div className="absolute top-4 left-4 z-10 w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl overflow-y-auto max-h-[90vh]">
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-          Gene Simulator
-        </h1>
-        <div className="flex gap-2">
-            <button
-            onClick={() => setPaused(!paused)}
-            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-            title={paused ? "Play" : "Pause"}
-            >
-            {paused ? <Play size={16} /> : <Pause size={16} />}
-            </button>
-            <button
-            onClick={resetSimulation}
-            className="p-2 rounded-lg bg-white/10 hover:bg-red-500/50 transition"
-            title="Reset"
-            >
-            <RefreshCcw size={16} />
-            </button>
-        </div>
-      </div>
+    {/* Left Panel Container - Handles slide animation */}
+    <div 
+        className={`absolute top-4 left-4 z-10 transition-transform duration-300 ease-in-out ${isCollapsed ? '-translate-x-[calc(100%+1rem)]' : 'translate-x-0'}`}
+    >
+        {/* Main Control Box */}
+        <div className="w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl overflow-y-auto max-h-[90vh]">
+            <div className="flex items-center justify-between mb-6">
+                <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
+                Gene Simulator
+                </h1>
+                <div className="flex gap-2">
+                    <button
+                    onClick={() => setPaused(!paused)}
+                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
+                    title={paused ? "Play" : "Pause"}
+                    >
+                    {paused ? <Play size={16} /> : <Pause size={16} />}
+                    </button>
+                    <button
+                    onClick={resetSimulation}
+                    className="p-2 rounded-lg bg-white/10 hover:bg-red-500/50 transition"
+                    title="Reset"
+                    >
+                    <RefreshCcw size={16} />
+                    </button>
+                </div>
+            </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div className="bg-white/5 p-3 rounded-lg border border-white/5">
-          <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-            <Activity size={12} /> Population
-          </div>
-          <div className="text-2xl font-mono font-semibold">{populationCount}</div>
-        </div>
-        <div className="bg-white/5 p-3 rounded-lg border border-white/5">
-          <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-            <Dna size={12} /> Avg Selfishness
-          </div>
-          <div 
-            className="text-2xl font-mono font-semibold"
-            style={{ color: `hsl(${360 * avgSelfishness}, 70%, 60%)` }} 
-          >
-            {(avgSelfishness * 100).toFixed(1)}%
-          </div>
-          <div className="w-full h-1 bg-gray-700 mt-2 rounded-full overflow-hidden">
-            <div 
-                className="h-full transition-all duration-500"
-                style={{ 
-                    width: `${avgSelfishness * 100}%`,
-                    background: `linear-gradient(90deg, #4ade80 0%, #f87171 100%)` 
-                }}
-            />
-          </div>
-        </div>
-      </div>
+            {/* Stats */}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+                <div className="bg-white/5 p-3 rounded-lg border border-white/5">
+                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
+                    <Activity size={12} /> Population
+                </div>
+                <div className="text-2xl font-mono font-semibold">{populationCount}</div>
+                </div>
+                <div className="bg-white/5 p-3 rounded-lg border border-white/5">
+                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
+                    <Dna size={12} /> Avg Selfishness
+                </div>
+                <div 
+                    className="text-2xl font-mono font-semibold"
+                    style={{ color: `hsl(${360 * avgSelfishness}, 70%, 60%)` }} 
+                >
+                    {(avgSelfishness * 100).toFixed(1)}%
+                </div>
+                <div className="w-full h-1 bg-gray-700 mt-2 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full transition-all duration-500"
+                        style={{ 
+                            width: `${avgSelfishness * 100}%`,
+                            background: `linear-gradient(90deg, #4ade80 0%, #f87171 100%)` 
+                        }}
+                    />
+                </div>
+                </div>
+            </div>
 
-      {/* View Mode */}
-      <div className="mb-6">
-        <label className="text-xs font-medium text-gray-300 flex items-center gap-2 mb-3">
-          <Eye size={14} /> Visualization Mode
-        </label>
-        <div className="grid grid-cols-2 gap-2">
-          {[
-            { id: 'selfishness', label: 'Selfishness', color: 'bg-red-500' },
-            { id: 'speed', label: 'Speed', color: 'bg-blue-500' },
-            { id: 'size', label: 'Size', color: 'bg-purple-500' },
-            { id: 'mutation', label: 'Mutation', color: 'bg-pink-500' },
-          ].map((mode) => (
-            <button
-              key={mode.id}
-              onClick={() => setViewMode(mode.id as ViewMode)}
-              className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
-                viewMode === mode.id
-                  ? 'bg-white/10 border-white/40 text-white'
-                  : 'bg-transparent border-transparent text-gray-500 hover:bg-white/5 hover:text-gray-300'
-              }`}
-            >
-              <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${mode.color}`} />
-                {mode.label}
-              </div>
-            </button>
-          ))}
-        </div>
-      </div>
+            {/* View Mode */}
+            <div className="mb-6">
+                <label className="text-xs font-medium text-gray-300 flex items-center gap-2 mb-3">
+                <Eye size={14} /> Visualization Mode
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                {[
+                    { id: 'selfishness', label: 'Selfishness', color: 'bg-red-500' },
+                    { id: 'speed', label: 'Speed', color: 'bg-blue-500' },
+                    { id: 'size', label: 'Size', color: 'bg-purple-500' },
+                    { id: 'mutation', label: 'Mutation', color: 'bg-pink-500' },
+                ].map((mode) => (
+                    <button
+                    key={mode.id}
+                    onClick={() => setViewMode(mode.id as ViewMode)}
+                    className={`px-3 py-2 text-xs font-medium rounded-lg border transition-all ${
+                        viewMode === mode.id
+                        ? 'bg-white/10 border-white/40 text-white'
+                        : 'bg-transparent border-transparent text-gray-500 hover:bg-white/5 hover:text-gray-300'
+                    }`}
+                    >
+                    <div className="flex items-center gap-2">
+                        <div className={`w-2 h-2 rounded-full ${mode.color}`} />
+                        {mode.label}
+                    </div>
+                    </button>
+                ))}
+                </div>
+            </div>
 
-      {/* Controls */}
-      <div className="space-y-5">
-        
-        {/* Camera Controls Group */}
-        <div className="bg-white/5 p-3 rounded-lg border border-white/5 space-y-3">
-            <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
-                <Video size={14} /> Camera Controls
-            </label>
-            
-            <div className="space-y-2">
-                <label className="text-xs font-medium text-gray-400 flex justify-between">
-                    <span className="flex items-center gap-1"><Search size={10} /> Follow Zoom</span>
-                    <span>{followZoom}</span>
+            {/* Controls */}
+            <div className="space-y-5">
+                
+                {/* Camera Controls Group */}
+                <div className="bg-white/5 p-3 rounded-lg border border-white/5 space-y-3">
+                    <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
+                        <Video size={14} /> Camera Controls
+                    </label>
+                    
+                    <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-400 flex justify-between">
+                            <span className="flex items-center gap-1"><Search size={10} /> Follow Zoom</span>
+                            <span>{followZoom}</span>
+                        </label>
+                        <input
+                            type="range"
+                            min="5"
+                            max="60"
+                            step="1"
+                            value={followZoom}
+                            onChange={(e) => setFollowZoom(parseFloat(e.target.value))}
+                            className="w-full accent-blue-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                    <button 
+                        onClick={resetCamera}
+                        className="w-full py-1.5 text-xs bg-white/10 hover:bg-white/20 rounded-md text-gray-300 transition-colors"
+                    >
+                        Reset Camera Position
+                    </button>
+                </div>
+
+                <div className="flex items-center justify-between">
+                    <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
+                        <Battery size={14} /> Show Energy Bars
+                    </label>
+                    <button 
+                        onClick={() => setShowEnergyBars(!showEnergyBars)}
+                        className={`w-10 h-5 rounded-full transition-colors relative ${showEnergyBars ? 'bg-blue-500' : 'bg-gray-700'}`}
+                    >
+                        <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${showEnergyBars ? 'translate-x-5' : 'translate-x-0'}`} />
+                    </button>
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-gray-300 flex justify-between">
+                        <span className="flex items-center gap-1"><CloudFog size={12} /> Fog Distance</span>
+                        <span className="text-gray-400">{fogDistance}</span>
+                    </label>
+                    <input
+                        type="range"
+                        min="30"
+                        max="300"
+                        step="10"
+                        value={fogDistance}
+                        onChange={(e) => setFogDistance(parseFloat(e.target.value))}
+                        className="w-full accent-gray-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+
+                <div className="h-px bg-white/10 my-4" />
+
+                <div className="space-y-2">
+                <label className="text-xs font-medium text-gray-300 flex justify-between">
+                    <span>Food Spawn Rate</span>
+                    <span className="text-blue-400">{params.foodSpawnRate}</span>
                 </label>
                 <input
                     type="range"
-                    min="5"
-                    max="60"
-                    step="1"
-                    value={followZoom}
-                    onChange={(e) => setFollowZoom(parseFloat(e.target.value))}
-                    className="w-full accent-blue-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    min="0"
+                    max="20"
+                    step="0.5"
+                    value={params.foodSpawnRate}
+                    onChange={(e) => handleChange('foodSpawnRate', parseFloat(e.target.value))}
+                    className="w-full accent-blue-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                 />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-gray-300 flex justify-between">
+                    <span>Mutation Magnitude</span>
+                    <span className="text-purple-400">{params.mutationMagnitude}</span>
+                    </label>
+                    <input
+                    type="range"
+                    min="0"
+                    max="0.5"
+                    step="0.01"
+                    value={params.mutationMagnitude}
+                    onChange={(e) => handleChange('mutationMagnitude', parseFloat(e.target.value))}
+                    className="w-full accent-purple-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-gray-300 flex justify-between">
+                    <span>Energy Cost</span>
+                    <span className="text-orange-400">{params.energyCostPerTick}</span>
+                    </label>
+                    <input
+                    type="range"
+                    min="0.01"
+                    max="1.0"
+                    step="0.01"
+                    value={params.energyCostPerTick}
+                    onChange={(e) => handleChange('energyCostPerTick', parseFloat(e.target.value))}
+                    className="w-full accent-orange-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
+
+                <div className="space-y-2">
+                    <label className="text-xs font-medium text-gray-300 flex justify-between">
+                    <span>Sim Speed</span>
+                    <span className="text-green-400">{params.simulationSpeed}x</span>
+                    </label>
+                    <input
+                    type="range"
+                    min="0.1"
+                    max="3.0"
+                    step="0.1"
+                    value={params.simulationSpeed}
+                    onChange={(e) => handleChange('simulationSpeed', parseFloat(e.target.value))}
+                    className="w-full accent-green-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                    />
+                </div>
             </div>
-             <button 
-                onClick={resetCamera}
-                className="w-full py-1.5 text-xs bg-white/10 hover:bg-white/20 rounded-md text-gray-300 transition-colors"
-            >
-                Reset Camera Position
-            </button>
-        </div>
-
-        <div className="flex items-center justify-between">
-             <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
-                <Battery size={14} /> Show Energy Bars
-            </label>
+            
+            {/* Toggle Button attached to the right of the panel */}
             <button 
-                onClick={() => setShowEnergyBars(!showEnergyBars)}
-                className={`w-10 h-5 rounded-full transition-colors relative ${showEnergyBars ? 'bg-blue-500' : 'bg-gray-700'}`}
+                onClick={() => setIsCollapsed(!isCollapsed)}
+                className="absolute top-0 -right-12 mt-4 p-2.5 bg-black/80 backdrop-blur-md border border-white/10 border-l-0 rounded-r-xl text-white hover:bg-white/10 hover:text-blue-400 transition-colors shadow-xl"
+                title={isCollapsed ? "Open Settings" : "Minimize Settings"}
             >
-                <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${showEnergyBars ? 'translate-x-5' : 'translate-x-0'}`} />
+                {isCollapsed ? <Settings size={20} /> : <ChevronLeft size={20} />}
             </button>
         </div>
-
-        <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-300 flex justify-between">
-                <span className="flex items-center gap-1"><CloudFog size={12} /> Fog Distance</span>
-                <span className="text-gray-400">{fogDistance}</span>
-            </label>
-            <input
-                type="range"
-                min="30"
-                max="300"
-                step="10"
-                value={fogDistance}
-                onChange={(e) => setFogDistance(parseFloat(e.target.value))}
-                className="w-full accent-gray-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-            />
-        </div>
-
-        <div className="h-px bg-white/10 my-4" />
-
-        <div className="space-y-2">
-          <label className="text-xs font-medium text-gray-300 flex justify-between">
-            <span>Food Spawn Rate</span>
-            <span className="text-blue-400">{params.foodSpawnRate}</span>
-          </label>
-          <input
-            type="range"
-            min="0"
-            max="20"
-            step="0.5"
-            value={params.foodSpawnRate}
-            onChange={(e) => handleChange('foodSpawnRate', parseFloat(e.target.value))}
-            className="w-full accent-blue-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-          />
-        </div>
-
-        <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-300 flex justify-between">
-            <span>Mutation Magnitude</span>
-            <span className="text-purple-400">{params.mutationMagnitude}</span>
-            </label>
-            <input
-            type="range"
-            min="0"
-            max="0.5"
-            step="0.01"
-            value={params.mutationMagnitude}
-            onChange={(e) => handleChange('mutationMagnitude', parseFloat(e.target.value))}
-            className="w-full accent-purple-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-            />
-        </div>
-
-        <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-300 flex justify-between">
-            <span>Energy Cost</span>
-            <span className="text-orange-400">{params.energyCostPerTick}</span>
-            </label>
-            <input
-            type="range"
-            min="0.01"
-            max="1.0"
-            step="0.01"
-            value={params.energyCostPerTick}
-            onChange={(e) => handleChange('energyCostPerTick', parseFloat(e.target.value))}
-            className="w-full accent-orange-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-            />
-        </div>
-
-         <div className="space-y-2">
-            <label className="text-xs font-medium text-gray-300 flex justify-between">
-            <span>Sim Speed</span>
-            <span className="text-green-400">{params.simulationSpeed}x</span>
-            </label>
-            <input
-            type="range"
-            min="0.1"
-            max="3.0"
-            step="0.1"
-            value={params.simulationSpeed}
-            onChange={(e) => handleChange('simulationSpeed', parseFloat(e.target.value))}
-            className="w-full accent-green-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-            />
-        </div>
-      </div>
     </div>
 
     {/* Right Panel: Agent Inspector */}

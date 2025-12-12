@@ -7,6 +7,11 @@ import { spawnAgent, spawnFood, resetIds } from '../entities';
 import { LogicSystem } from '../core/LogicSystem';
 import { RendererSystem } from '../systems/Renderer';
 
+// Updated asset paths to be relative to the deployment root.
+// This assumes your deployment copies 'assets' to the root of the 'compiled' directory.
+const RABBIT_MODEL_PATH = './assets/rabbit_model.gltf';
+const CARROT_MODEL_PATH = './assets/carrot/scene.gltf';
+
 interface SimulationProps {
   params: SimulationParams;
   paused: boolean;
@@ -22,8 +27,6 @@ interface SimulationProps {
 }
 
 // --- Component: Simulation Root ---
-// Handles Initial Spawn and Orchestration
-
 interface SimulationRootProps extends SimulationProps {
     externalGeometry?: BufferGeometry;
     foodModels?: { geometry: BufferGeometry; material: Material }[];
@@ -33,8 +36,8 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
     params, 
     paused, 
     onStatsUpdate, 
-    resetTrigger,
-    viewMode,
+    resetTrigger, 
+    viewMode, 
     onHoverAgent,
     hoveredAgent,
     onSelectAgent,
@@ -43,7 +46,6 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
     externalGeometry,
     foodModels
 }) => {
-  // Initialize World
   useEffect(() => {
     clearWorld();
     resetIds();
@@ -78,9 +80,9 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
 
 // --- Model Loader Wrapper ---
 const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
-    const { scene: rabbitScene } = useGLTF('/assets/rabbit_model.gltf');
-    // Load carrot model from scene.gltf
-    const { scene: carrotScene } = useGLTF('/assets/carrot/scene.gltf');
+    // Pass the string paths directly to useGLTF
+    const { scene: rabbitScene } = useGLTF(RABBIT_MODEL_PATH);
+    const { scene: carrotScene } = useGLTF(CARROT_MODEL_PATH);
     
     const rabbitGeo = useMemo(() => {
         let geo: BufferGeometry | undefined;
@@ -97,37 +99,23 @@ const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
         carrotScene.traverse((child) => {
             if ((child as Mesh).isMesh) {
                 const mesh = child as Mesh;
-                // Clone geometry to avoid mutations if reused
                 const geo = mesh.geometry.clone();
                 
-                // --- Material Handling ---
-                // The GLTFLoader might produce materials with unsupported PBR extensions
-                // or textures might fail to load. We manually reconstruct a robust StandardMaterial.
                 const originalMat = mesh.material as any;
-                
                 const newMat = new MeshStandardMaterial({
                      roughness: 0.8,
                      metalness: 0.1
                 });
 
-                // Try to preserve the map if the loader found it
                 if (originalMat.map) {
                     newMat.map = originalMat.map;
-                    newMat.color = new Color(1, 1, 1); // White if texture exists
+                    newMat.color = new Color(1, 1, 1); 
                 } else {
-                    // Fallback colors based on name if map is missing
                     const name = mesh.name.toLowerCase();
-                    // Heuristic: Leaves usually have 'leaf', 'leave' in name, or are the second mesh
-                    // But names in scene.gltf might be generic.
-                    // Let's assume standard carrot colors if we can't find texture.
-                    
-                    // Note: In many carrot models, one mesh is the root (orange) and one is leaves (green).
-                    // We can try to guess based on mesh name or just index logic if names fail.
                     if (name.includes('leaf') || name.includes('leaves') || name.includes('green')) {
-                        newMat.color.setHex(0x228b22); // Forest Green
+                        newMat.color.setHex(0x228b22); 
                     } else {
-                         // Default to orange for the body
-                         newMat.color.setHex(0xff8c00); // Dark Orange
+                         newMat.color.setHex(0xff8c00); 
                     }
                 }
                 
@@ -135,16 +123,11 @@ const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
             }
         });
         
-        // If we found parts but the fallback color logic failed (both orange), 
-        // we can try to refine it by simple heuristics: 
-        // usually the smaller volume or higher Y is leaves? 
-        // simpler: if we have 2 parts and both are orange, force one to green.
+        // Simple heuristic to fix carrot colors if textures fail
         if (parts.length === 2) {
              const m0 = parts[0].material as MeshStandardMaterial;
              const m1 = parts[1].material as MeshStandardMaterial;
-             // If both are same color and no maps
              if (!m0.map && !m1.map && m0.color.getHex() === m1.color.getHex()) {
-                 // Assume second one is leaves (often the case in exports)
                  m1.color.setHex(0x228b22);
              }
         }
@@ -168,3 +151,7 @@ export const Simulation: React.FC<SimulationProps> = ({ fallbackMode, ...props }
     }
     return <SimulationModelWrapper {...props} />;
 };
+
+// Preload assets
+useGLTF.preload(RABBIT_MODEL_PATH);
+useGLTF.preload(CARROT_MODEL_PATH);

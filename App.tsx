@@ -230,7 +230,8 @@ export default function App() {
             }}
           >
             <Suspense fallback={null}>
-                <Simulation key="model" {...commonProps} />
+                {/* fallbackMode set to false to attempt loading assets */}
+                <Simulation key="model" {...commonProps} fallbackMode={false} />
             </Suspense>
           </SimulationErrorBoundary>
 

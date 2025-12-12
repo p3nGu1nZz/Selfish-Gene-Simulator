@@ -17,11 +17,83 @@ const DIG_THRESHOLD = 8.0; // Seconds to dig a hole (Increased)
 const FEAR_DECAY = 10;
 const AFFINITY_RANGE = 20;
 
+// -- Spatial Hash for Performance Optimization --
+// Replaces O(N^2) distance checks with O(N) grid lookups
+class SpatialHash {
+    cellSize: number;
+    buckets: Map<string, Entity[]>;
+
+    constructor(cellSize: number) {
+        this.cellSize = cellSize;
+        this.buckets = new Map();
+    }
+
+    clear() {
+        this.buckets.clear();
+    }
+
+    add(entity: Entity) {
+        const key = this.getKey(entity.position);
+        if (!this.buckets.has(key)) {
+            this.buckets.set(key, []);
+        }
+        this.buckets.get(key)!.push(entity);
+    }
+
+    getKey(pos: Vector3): string {
+        const x = Math.floor(pos.x / this.cellSize);
+        const z = Math.floor(pos.z / this.cellSize);
+        return `${x},${z}`;
+    }
+
+    query(pos: Vector3): Entity[] {
+        const x = Math.floor(pos.x / this.cellSize);
+        const z = Math.floor(pos.z / this.cellSize);
+        const results: Entity[] = [];
+        
+        // Check 3x3 Grid
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                const key = `${x + i},${z + j}`;
+                const bucket = this.buckets.get(key);
+                if (bucket) {
+                    for(let k=0; k<bucket.length; k++) {
+                        results.push(bucket[k]);
+                    }
+                }
+            }
+        }
+        return results;
+    }
+}
+
+// Initialize hashes once
+const agentHash = new SpatialHash(SENSOR_RADIUS);
+const foodHash = new SpatialHash(SENSOR_RADIUS);
+const burrowHash = new SpatialHash(SENSOR_RADIUS);
+
+
 export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor: (e: Entity) => {r:number, g:number, b:number}) => {
     const allAgents = agents.entities;
     const allFood = food.entities;
     const allBurrows = burrows.entities;
     
+    // 0. Build Spatial Index (Optimization Step)
+    agentHash.clear();
+    foodHash.clear();
+    burrowHash.clear();
+
+    for (const a of allAgents) {
+        // Only index active agents
+        if (a.agent && !a.agent.currentBurrowId) agentHash.add(a);
+    }
+    for (const f of allFood) {
+        foodHash.add(f);
+    }
+    for (const b of allBurrows) {
+        burrowHash.add(b);
+    }
+
     for (const entity of allAgents) {
         const { agent, position, velocity } = entity;
         if (!agent || !velocity) continue;
@@ -41,7 +113,6 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         agent.fear = Math.max(0, agent.fear - FEAR_DECAY * dt);
         
         // Random scare event (Emergent panic)
-        // Selfish agents scare easier? Or maybe solitary ones.
         if (Math.random() < 0.001) { 
             agent.fear = 100;
         }
@@ -70,8 +141,7 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                 spawnParticle(position.clone().add(new Vector3(0,1,0)), 'zzz');
             }
 
-            // Exit conditions: Full energy or Scared or Hunger
-            // Lowered threshold to 85 so they don't hide forever
+            // Exit conditions
             if (agent.energy >= 85) {
                  agent.currentBurrowId = null;
                  agent.state = 'wandering';
@@ -89,15 +159,13 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         else if (agent.state === 'digging') {
             // Continued digging logic handled below
         }
-        // 3. Resting/Sleeping (Low energy, try to find burrow or sleep on ground)
+        // 3. Resting/Sleeping (Low energy)
         else if (agent.energy < 20) {
-             agent.state = 'seeking_food'; // Hunger overrides sleep usually, but if NO food...
-             // Check nearest food, if none nearby, sleep
-             // Logic handled in movement
+             agent.state = 'seeking_food'; 
         }
 
         // -----------------------
-        // PERCEPTION
+        // PERCEPTION (OPTIMIZED)
         // -----------------------
         let nearestFood: Entity | null = null;
         let nearestFoodDist = Infinity;
@@ -106,48 +174,49 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         let nearestBurrow: Entity | null = null;
         let nearestBurrowDist = Infinity;
 
-        // Scan Food
-        for (const f of allFood) {
+        const maxDistSq = SENSOR_RADIUS * SENSOR_RADIUS;
+
+        // Optimized: Scan only neighbors from Spatial Hash
+        const nearbyFood = foodHash.query(position);
+        for (const f of nearbyFood) {
             const distSq = position.distanceToSquared(f.position);
-            if (distSq < SENSOR_RADIUS * SENSOR_RADIUS && distSq < nearestFoodDist) {
+            if (distSq < maxDistSq && distSq < nearestFoodDist) {
                 nearestFoodDist = distSq;
                 nearestFood = f;
             }
         }
 
-        // Scan Agents & Update Affinity
-        for (const other of allAgents) {
+        // Optimized: Scan only neighbors from Spatial Hash
+        const nearbyAgents = agentHash.query(position);
+        for (const other of nearbyAgents) {
             if (other === entity) continue;
-            // Skip hidden agents
-            if (other.agent?.currentBurrowId) continue;
-
+            
             const distSq = position.distanceToSquared(other.position);
             
-            if (distSq < SENSOR_RADIUS * SENSOR_RADIUS) {
+            if (distSq < maxDistSq) {
                 if(distSq < nearestAgentDist) {
                     nearestAgentDist = distSq;
                     nearestAgent = other;
                 }
 
                 // Emergent Affinity Update
-                // Genes: Similar hue/genes = +Affinity
                 const otherGenes = other.agent!.genes;
                 const geneticDiff = Math.abs(agent.genes.selfishness - otherGenes.selfishness) + Math.abs(agent.genes.size - otherGenes.size);
                 
-                // If close, update affinity faster
                 const currentAffinity = agent.affinity[other.id] || 0;
                 let change = 0;
-                if (geneticDiff < 0.5) change += 15 * dt; // Faster friend making
-                else change -= 5 * dt; // Not like me
+                if (geneticDiff < 0.5) change += 15 * dt; 
+                else change -= 5 * dt; 
                 
                 agent.affinity[other.id] = Math.max(-100, Math.min(100, currentAffinity + change));
             }
         }
 
-        // Scan Burrows
-        for (const b of allBurrows) {
+        // Optimized: Scan only neighbors from Spatial Hash
+        const nearbyBurrows = burrowHash.query(position);
+        for (const b of nearbyBurrows) {
             const distSq = position.distanceToSquared(b.position);
-            if (distSq < SENSOR_RADIUS * SENSOR_RADIUS && distSq < nearestBurrowDist) {
+            if (distSq < maxDistSq && distSq < nearestBurrowDist) {
                 nearestBurrowDist = distSq;
                 nearestBurrow = b;
             }
@@ -169,7 +238,6 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
             agent.energy -= DIG_COST * dt;
             velocity.set(0,0,0);
             
-            // Particles
             if (Math.random() < dt * 10) spawnParticle(position, 'dirt');
 
             if (agent.digTimer > DIG_THRESHOLD) {
@@ -204,15 +272,14 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
              // Affinity Check
              const affinity = agent.affinity[other.id] || 0;
              const isEnemy = affinity < -20;
-             const isFriend = affinity > 10; // Lower threshold to make friends easier
+             const isFriend = affinity > 10; 
 
              if (isEnemy) {
-                 // Fight or Flee based on size
                  if (agent.genes.size > otherAgent.genes.size) {
                      agent.state = 'chasing';
                      agent.target = other.position;
                      agent.energy -= 10 * dt;
-                     otherAgent.fear += 50 * dt; // Scare them
+                     otherAgent.fear += 50 * dt; 
                  } else {
                      agent.fear += 20 * dt;
                  }
@@ -266,34 +333,26 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
 
             // 1. FLEEING
             if (agent.state === 'fleeing') {
-                // Run random or away from center? Run randomly fast.
                 const panicDir = new Vector3(rand(-1,1), 0, rand(-1,1)).normalize();
                 steering.add(panicDir.multiplyScalar(3));
-                // High energy cost
                 agent.energy -= 20 * dt;
-                
             } 
             // 2. CIRCLING (Play)
             else if (agent.state === 'circling' && agent.target) {
-                // Move perpendicular to target vector
                 const toTarget = tempVec2.subVectors(agent.target, position);
                 const dist = toTarget.length();
                 if (dist < 1 || dist > 10) {
-                     agent.state = 'wandering'; // Break circle
+                     agent.state = 'wandering'; 
                 } else {
                     const perp = new Vector3(-toTarget.z, 0, toTarget.x).normalize();
                     steering.add(perp.multiplyScalar(2));
-                    // Slight pull in to keep orbit
                     steering.add(toTarget.normalize().multiplyScalar(0.5));
                 }
                 
-                // End circling randomly
                 if (Math.random() < dt * 0.5) agent.state = 'seeking_food';
             }
             // 3. SEEKING FOOD
             else if (nearestFood && nearestFood.food) {
-                
-                // Logic: If not starving, maybe circle it first?
                 if (distToFood < 5 && agent.energy > 50 && agent.state !== 'circling' && Math.random() < 0.1) {
                      agent.state = 'circling';
                      agent.target = nearestFood.position.clone();
@@ -316,7 +375,6 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
             // 4. SEEKING BURROW / DIGGING
             else if (agent.energy < 40) {
                 if (agent.ownedBurrowId !== null) {
-                    // Go to owned burrow
                     const myBurrow = allBurrows.find(b => b.id === agent.ownedBurrowId);
                     if (myBurrow) {
                         const dist = position.distanceTo(myBurrow.position);
@@ -329,10 +387,9 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                             steering.add(tempVec2);
                         }
                     } else {
-                        agent.ownedBurrowId = null; // Burrow destroyed?
+                        agent.ownedBurrowId = null; 
                     }
                 } else if (nearestBurrow && distToBurrow < 20) {
-                     // Try to share? Check owner affinity?
                      const toBurrow = tempVec2.subVectors(nearestBurrow.position, position).normalize();
                      steering.add(toBurrow);
                      targetDistForSpeed = distToBurrow;
@@ -362,13 +419,12 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
 
             // Modulate speed by state
             let speedMult = 25.0; // Base faster for open world
-            if (agent.state === 'fleeing') speedMult = 45.0; // Much faster flee
+            if (agent.state === 'fleeing') speedMult = 45.0; 
             else if (agent.state === 'circling') speedMult = 20.0;
             else if (agent.energy < 20) speedMult = 8.0;
             
             // Dynamic hop sizing logic
             if (targetDistForSpeed < 15.0 && agent.state !== 'fleeing') {
-                // Scale speed down as we get closer to target for precision landing
                 const approachFactor = Math.max(0.15, Math.pow(targetDistForSpeed / 15.0, 0.7));
                 speedMult *= approachFactor;
             }
