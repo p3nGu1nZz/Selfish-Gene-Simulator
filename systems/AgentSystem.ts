@@ -1,7 +1,7 @@
 import { Vector3 } from 'three';
 import { world, agents, food } from '../ecs';
 import { Entity, SimulationParams } from '../types';
-import { WORLD_SIZE, MAX_POPULATION, AGENT_RADIUS_BASE, MAX_SPEED_BASE, SENSOR_RADIUS } from '../constants';
+import { WORLD_SIZE, MAX_POPULATION, AGENT_RADIUS_BASE, MAX_SPEED_BASE, SENSOR_RADIUS, MAX_TRAIL_POINTS } from '../constants';
 import { spawnParticle } from '../entities/Particle';
 import { spawnAgent, mutateGenome, generateName } from '../entities/Agent';
 
@@ -16,6 +16,12 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
     for (const entity of allAgents) {
         const { agent, position, velocity } = entity;
         if (!agent || !velocity) continue;
+
+        // 0. Update Trail
+        agent.trail.push(position.clone());
+        if (agent.trail.length > MAX_TRAIL_POINTS) {
+            agent.trail.shift();
+        }
 
         // 1. Lifecycle
         agent.age += dt;

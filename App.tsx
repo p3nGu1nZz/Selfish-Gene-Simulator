@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, Suspense } from 'react';
 import { Canvas, useThree, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stats, Environment } from '@react-three/drei';
 import { Simulation } from './components/Simulation';
@@ -6,6 +6,26 @@ import { ControlPanel } from './components/ControlPanel';
 import { DEFAULT_PARAMS, WORLD_SIZE } from './constants';
 import { SimulationParams, ViewMode, Entity } from './types';
 import { Vector3, Spherical } from 'three';
+
+// Error Boundary to catch 404s on the model loader
+class SimulationErrorBoundary extends React.Component<
+  { children: React.ReactNode; fallback: (error: any) => React.ReactNode },
+  { hasError: boolean; error: any }
+> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback(this.state.error);
+    }
+    return this.props.children;
+  }
+}
 
 // Component to handle camera following logic
 const CameraFollower = ({ selectedAgent }: { selectedAgent: Entity | null }) => {
@@ -106,6 +126,19 @@ export default function App() {
     }
   };
 
+  const commonProps = {
+    params,
+    paused,
+    onStatsUpdate: handleStatsUpdate,
+    resetTrigger,
+    viewMode,
+    onHoverAgent: handleAgentHover,
+    hoveredAgent,
+    onSelectAgent: handleAgentSelect,
+    selectedAgent,
+    showEnergyBars
+  };
+
   return (
     <div className="relative w-full h-full bg-black">
       
@@ -141,18 +174,18 @@ export default function App() {
             shadow-mapSize={[1024, 1024]} 
           />
           
-          <Simulation 
-            params={params} 
-            paused={paused} 
-            onStatsUpdate={handleStatsUpdate} 
-            resetTrigger={resetTrigger}
-            viewMode={viewMode}
-            onHoverAgent={handleAgentHover}
-            hoveredAgent={hoveredAgent}
-            onSelectAgent={handleAgentSelect}
-            selectedAgent={selectedAgent}
-            showEnergyBars={showEnergyBars}
-          />
+          <SimulationErrorBoundary 
+            fallback={(err) => {
+                console.warn("Falling back to procedural models due to load error:", err);
+                // Using key='procedural' forces a remount
+                return <Simulation key="procedural" {...commonProps} fallbackMode={true} />;
+            }}
+          >
+            <Suspense fallback={null}>
+                {/* Using key='model' ensures this is treated as a distinct tree */}
+                <Simulation key="model" {...commonProps} />
+            </Suspense>
+          </SimulationErrorBoundary>
 
           <CameraFollower selectedAgent={selectedAgent} />
 

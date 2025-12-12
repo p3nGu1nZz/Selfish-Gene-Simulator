@@ -2,6 +2,7 @@ import { SimulationParams } from './types';
 
 export const WORLD_SIZE = 200;
 export const MAX_POPULATION = 600;
+export const MAX_TRAIL_POINTS = 20;
 
 export const DEFAULT_PARAMS: SimulationParams = {
   initialPop: 40,
