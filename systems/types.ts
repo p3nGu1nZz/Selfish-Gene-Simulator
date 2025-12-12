@@ -1,4 +1,5 @@
 import { Vector3, Color } from 'three';
+import React from 'react';
 
 export type ViewMode = 'selfishness' | 'speed' | 'size' | 'mutation' | 'affinity';
 
@@ -87,6 +88,8 @@ declare global {
       fog: any;
       ambientLight: any;
       directionalLight: any;
+      pointLight: any;
+      spotLight: any;
       instancedMesh: any;
       primitive: any;
       

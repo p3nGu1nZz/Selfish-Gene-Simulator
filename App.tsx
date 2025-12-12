@@ -255,9 +255,9 @@ export default function App() {
             minDistance={5} 
             maxDistance={200}
             mouseButtons={{
-                LEFT: MOUSE.PAN,
-                RIGHT: MOUSE.ROTATE,
-                MIDDLE: MOUSE.DOLLY
+                LEFT: 2,   // Pan
+                RIGHT: 0,  // Rotate
+                MIDDLE: 1  // Dolly
             }}
           />
           <Environment preset="night" />
