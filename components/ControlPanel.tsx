@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SimulationParams, ViewMode, Entity } from '../systems/types';
-import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search, Settings, ChevronLeft } from 'lucide-react';
+import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search, Settings, Footprints } from 'lucide-react';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -19,6 +19,10 @@ interface ControlPanelProps {
   setSelectedAgent: (a: Entity | null) => void;
   showEnergyBars: boolean;
   setShowEnergyBars: (show: boolean) => void;
+  showTrails: boolean;
+  setShowTrails: (show: boolean) => void;
+  enableFog: boolean;
+  setEnableFog: (enabled: boolean) => void;
   followZoom: number;
   setFollowZoom: (z: number) => void;
   resetCamera: () => void;
@@ -186,42 +190,74 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   setSelectedAgent,
   showEnergyBars,
   setShowEnergyBars,
+  showTrails,
+  setShowTrails,
+  enableFog,
+  setEnableFog,
   followZoom,
   setFollowZoom,
   resetCamera
 }) => {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isOpen, setIsOpen] = useState(true);
 
   const handleChange = (key: keyof SimulationParams, value: number) => {
     setParams((prev) => ({ ...prev, [key]: value }));
   };
 
+  // Completely block arrow key navigation on inputs
+  const preventArrowKeys = (e: React.KeyboardEvent) => {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+          e.preventDefault();
+          e.stopPropagation();
+      }
+      // Block Space as well to prevent toggling buttons if focused
+      if (e.key === ' ') {
+          e.preventDefault();
+          e.stopPropagation();
+      }
+  };
+
   return (
     <>
-    {/* Left Panel Container - Handles slide animation */}
-    <div 
-        className={`absolute top-4 left-4 z-10 transition-transform duration-300 ease-in-out ${isCollapsed ? '-translate-x-[calc(100%+1rem)]' : 'translate-x-0'}`}
-    >
-        {/* Main Control Box */}
-        <div className="w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl overflow-y-auto max-h-[90vh]">
+    {/* Floating Gear Icon to Open */}
+    {!isOpen && (
+        <button
+            onClick={() => setIsOpen(true)}
+            className="absolute top-4 left-4 z-20 p-2.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-white hover:bg-white/10 hover:text-blue-400 transition-colors shadow-xl"
+            title="Open Settings"
+        >
+            <Settings size={20} />
+        </button>
+    )}
+
+    {/* Main Control Box */}
+    {isOpen && (
+    <div className="absolute top-4 left-4 z-10 w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl overflow-y-auto max-h-[90vh]">
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
                 Gene Simulator
                 </h1>
                 <div className="flex gap-2">
                     <button
-                    onClick={() => setPaused(!paused)}
-                    className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
-                    title={paused ? "Play" : "Pause"}
+                        onClick={() => setPaused(!paused)}
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition"
+                        title={paused ? "Play" : "Pause"}
                     >
-                    {paused ? <Play size={16} /> : <Pause size={16} />}
+                        {paused ? <Play size={16} /> : <Pause size={16} />}
                     </button>
                     <button
-                    onClick={resetSimulation}
-                    className="p-2 rounded-lg bg-white/10 hover:bg-red-500/50 transition"
-                    title="Reset"
+                        onClick={resetSimulation}
+                        className="p-2 rounded-lg bg-white/10 hover:bg-red-500/50 transition"
+                        title="Reset"
                     >
-                    <RefreshCcw size={16} />
+                        <RefreshCcw size={16} />
+                    </button>
+                    <button
+                        onClick={() => setIsOpen(false)}
+                        className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition ml-1"
+                        title="Close Settings"
+                    >
+                        <X size={16} />
                     </button>
                 </div>
             </div>
@@ -306,6 +342,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                             max="60"
                             step="1"
                             value={followZoom}
+                            onKeyDown={preventArrowKeys}
                             onChange={(e) => setFollowZoom(parseFloat(e.target.value))}
                             className="w-full accent-blue-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                         />
@@ -318,33 +355,62 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     </button>
                 </div>
 
-                <div className="flex items-center justify-between">
-                    <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
-                        <Battery size={14} /> Show Energy Bars
-                    </label>
-                    <button 
-                        onClick={() => setShowEnergyBars(!showEnergyBars)}
-                        className={`w-10 h-5 rounded-full transition-colors relative ${showEnergyBars ? 'bg-blue-500' : 'bg-gray-700'}`}
-                    >
-                        <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${showEnergyBars ? 'translate-x-5' : 'translate-x-0'}`} />
-                    </button>
+                <div className="grid grid-cols-1 gap-2">
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
+                            <Battery size={14} /> Show Energy Bars
+                        </label>
+                        <button 
+                            onClick={() => setShowEnergyBars(!showEnergyBars)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${showEnergyBars ? 'bg-blue-500' : 'bg-gray-700'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${showEnergyBars ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
+                            <Footprints size={14} /> Show Trails
+                        </label>
+                        <button 
+                            onClick={() => setShowTrails(!showTrails)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${showTrails ? 'bg-blue-500' : 'bg-gray-700'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${showTrails ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
+
+                     <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium text-gray-300 flex items-center gap-2">
+                            <CloudFog size={14} /> Enable Fog
+                        </label>
+                        <button 
+                            onClick={() => setEnableFog(!enableFog)}
+                            className={`w-10 h-5 rounded-full transition-colors relative ${enableFog ? 'bg-blue-500' : 'bg-gray-700'}`}
+                        >
+                            <div className={`absolute top-1 left-1 w-3 h-3 bg-white rounded-full transition-transform ${enableFog ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                    </div>
                 </div>
 
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-gray-300 flex justify-between">
-                        <span className="flex items-center gap-1"><CloudFog size={12} /> Fog Distance</span>
-                        <span className="text-gray-400">{fogDistance}</span>
-                    </label>
-                    <input
-                        type="range"
-                        min="30"
-                        max="300"
-                        step="10"
-                        value={fogDistance}
-                        onChange={(e) => setFogDistance(parseFloat(e.target.value))}
-                        className="w-full accent-gray-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                    />
-                </div>
+                {enableFog && (
+                    <div className="space-y-2">
+                        <label className="text-xs font-medium text-gray-300 flex justify-between">
+                            <span className="flex items-center gap-1"><CloudFog size={12} /> Fog Distance</span>
+                            <span className="text-gray-400">{fogDistance}</span>
+                        </label>
+                        <input
+                            type="range"
+                            min="30"
+                            max="600"
+                            step="10"
+                            value={fogDistance}
+                            onKeyDown={preventArrowKeys}
+                            onChange={(e) => setFogDistance(parseFloat(e.target.value))}
+                            className="w-full accent-gray-400 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                        />
+                    </div>
+                )}
 
                 <div className="h-px bg-white/10 my-4" />
 
@@ -359,6 +425,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     max="20"
                     step="0.5"
                     value={params.foodSpawnRate}
+                    onKeyDown={preventArrowKeys}
                     onChange={(e) => handleChange('foodSpawnRate', parseFloat(e.target.value))}
                     className="w-full accent-blue-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                 />
@@ -375,6 +442,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     max="0.5"
                     step="0.01"
                     value={params.mutationMagnitude}
+                    onKeyDown={preventArrowKeys}
                     onChange={(e) => handleChange('mutationMagnitude', parseFloat(e.target.value))}
                     className="w-full accent-purple-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                     />
@@ -391,6 +459,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     max="1.0"
                     step="0.01"
                     value={params.energyCostPerTick}
+                    onKeyDown={preventArrowKeys}
                     onChange={(e) => handleChange('energyCostPerTick', parseFloat(e.target.value))}
                     className="w-full accent-orange-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                     />
@@ -407,22 +476,14 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     max="3.0"
                     step="0.1"
                     value={params.simulationSpeed}
+                    onKeyDown={preventArrowKeys}
                     onChange={(e) => handleChange('simulationSpeed', parseFloat(e.target.value))}
                     className="w-full accent-green-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                     />
                 </div>
             </div>
-            
-            {/* Toggle Button attached to the right of the panel */}
-            <button 
-                onClick={() => setIsCollapsed(!isCollapsed)}
-                className="absolute top-0 -right-12 mt-4 p-2.5 bg-black/80 backdrop-blur-md border border-white/10 border-l-0 rounded-r-xl text-white hover:bg-white/10 hover:text-blue-400 transition-colors shadow-xl"
-                title={isCollapsed ? "Open Settings" : "Minimize Settings"}
-            >
-                {isCollapsed ? <Settings size={20} /> : <ChevronLeft size={20} />}
-            </button>
-        </div>
     </div>
+    )}
 
     {/* Right Panel: Agent Inspector */}
     {hoveredAgent && (

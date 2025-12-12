@@ -85,6 +85,9 @@ const KeyboardControls = ({ controlsRef }: { controlsRef: React.MutableRefObject
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
             if (!controlsRef.current) return;
+            // Ignore key events if user is typing in an input (not relevant here, but good practice)
+            if ((e.target as HTMLElement).tagName === 'INPUT') return;
+
             const speed = 2;
             const forward = new Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
             forward.y = 0;
@@ -119,9 +122,11 @@ export default function App() {
   const [hoveredAgent, setHoveredAgent] = useState<Entity | null>(null);
   
   // New State
-  const [fogDistance, setFogDistance] = useState(180);
+  const [fogDistance, setFogDistance] = useState(280); 
   const [selectedAgent, setSelectedAgent] = useState<Entity | null>(null);
   const [showEnergyBars, setShowEnergyBars] = useState(true);
+  const [showTrails, setShowTrails] = useState(true);
+  const [enableFog, setEnableFog] = useState(true);
   const [followZoom, setFollowZoom] = useState(12);
 
   const controlsRef = useRef<any>(null);
@@ -181,7 +186,8 @@ export default function App() {
     hoveredAgent,
     onSelectAgent: handleAgentSelect,
     selectedAgent,
-    showEnergyBars
+    showEnergyBars,
+    showTrails
   };
 
   return (
@@ -204,6 +210,10 @@ export default function App() {
         setSelectedAgent={handleAgentSelect}
         showEnergyBars={showEnergyBars}
         setShowEnergyBars={setShowEnergyBars}
+        showTrails={showTrails}
+        setShowTrails={setShowTrails}
+        enableFog={enableFog}
+        setEnableFog={setEnableFog}
         followZoom={followZoom}
         setFollowZoom={setFollowZoom}
         resetCamera={handleResetCamera}
@@ -212,7 +222,7 @@ export default function App() {
       <div className="absolute inset-0 z-0">
         <Canvas shadows camera={{ position: [0, 50, 40], fov: 45 }}>
           <color attach="background" args={['#050505']} />
-          <fog attach="fog" args={['#050505', 10, fogDistance]} />
+          {enableFog && <fog attach="fog" args={['#050505', 10, fogDistance]} />}
           
           <ambientLight intensity={0.4} />
           <directionalLight 

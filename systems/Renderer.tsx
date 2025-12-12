@@ -17,6 +17,7 @@ export interface RendererProps {
     onSelectAgent: (agent: Entity | null) => void;
     selectedAgent: Entity | null;
     showEnergyBars: boolean;
+    showTrails: boolean;
     externalGeometry?: BufferGeometry;
     foodModels?: { geometry: BufferGeometry; material: Material }[];
 }
@@ -27,7 +28,8 @@ export const RendererSystem: React.FC<RendererProps> = ({
     hoveredAgent, 
     onSelectAgent, 
     selectedAgent, 
-    showEnergyBars, 
+    showEnergyBars,
+    showTrails,
     externalGeometry,
     foodModels
 }) => {
@@ -46,7 +48,7 @@ export const RendererSystem: React.FC<RendererProps> = ({
                 externalGeometry={externalGeometry}
                 showEnergyBars={showEnergyBars}
             />
-            <TrailLayer viewMode={viewMode} />
+            {showTrails && <TrailLayer viewMode={viewMode} />}
             <FoodLayer models={foodModels} />
             <ParticleLayer />
         </group>

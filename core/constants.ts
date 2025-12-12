@@ -1,17 +1,18 @@
 import { SimulationParams } from '../systems/types';
 
 export const WORLD_SIZE = 200;
-export const MAX_POPULATION = 600;
+export const MAX_POPULATION = 1200; 
 export const MAX_TRAIL_POINTS = 20;
+export const MIN_BURROW_SPACING = 32; // Rabbits ensure this distance between holes
 
 export const DEFAULT_PARAMS: SimulationParams = {
   initialPop: 40,
-  foodSpawnRate: 4, // Increased food spawn
+  foodSpawnRate: 4, 
   foodValue: 40,
   mutationMagnitude: 0.1,
-  energyCostPerTick: 0.05, // Reduced energy cost
-  reproductionThreshold: 80, // Lower threshold to reproduce
-  maxAge: 3000, // Longer life
+  energyCostPerTick: 0.03, 
+  reproductionThreshold: 50, 
+  maxAge: 3000, 
   simulationSpeed: 1.0,
 };
 

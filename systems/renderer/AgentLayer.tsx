@@ -80,8 +80,24 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 if (!isInBurrow) {
                     if (agent.state !== 'resting' && agent.state !== 'sleeping' && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
                         const progress = agent.hopTimer / HOP_DURATION;
-                        hopY = Math.sin(progress * Math.PI) * scale * 0.8;
-                        bodyTilt = -Math.sin(progress * Math.PI) * 0.2;
+                        
+                        // STOCHASTIC & FORCE BASED HOP HEIGHT
+                        const baseHeight = scale * 0.8; 
+                        
+                        // Modulate by Speed (Force) - faster rabbits jump higher/further
+                        const speedFactor = Math.max(0.6, agent.genes.speed * 0.8);
+                        
+                        // Stochastic variation per jump
+                        // Create a stable random seed for this specific jump instance based on age + id
+                        const jumpSeed = Math.floor(agent.age) + entity.id; 
+                        // Pseudo-random 0.8 to 1.2
+                        const randomVar = (Math.sin(jumpSeed * 12.9898) * 0.5 + 0.5) * 0.4 + 0.8; 
+                        
+                        hopY = Math.sin(progress * Math.PI) * baseHeight * speedFactor * randomVar;
+                        
+                        // Tilt body into the jump based on speed
+                        bodyTilt = -Math.sin(progress * Math.PI) * 0.3 * speedFactor;
+
                     } else if (agent.state === 'resting' || agent.state === 'sleeping') {
                         hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
                     } else if (agent.state === 'digging') {
@@ -146,14 +162,21 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                      
                      let hopY = 0;
                      if (!isInBurrow) {
-                         if (agent.state !== 'resting' && agent.hopTimer < HOP_DURATION) {
+                         if (agent.state !== 'resting' && agent.state !== 'sleeping' && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
                              const progress = agent.hopTimer / HOP_DURATION;
-                             hopY = Math.sin(progress * Math.PI) * scale * 0.8;
+                             
+                             // Duplicate logic for procedural parts to match body position
+                             const baseHeight = scale * 0.8; 
+                             const speedFactor = Math.max(0.6, agent.genes.speed * 0.8);
+                             const jumpSeed = Math.floor(agent.age) + entity.id; 
+                             const randomVar = (Math.sin(jumpSeed * 12.9898) * 0.5 + 0.5) * 0.4 + 0.8; 
+                             
+                             hopY = Math.sin(progress * Math.PI) * baseHeight * speedFactor * randomVar;
                          } else if (agent.state === 'resting') {
                              hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
                          }
                      }
-                     
+
                      const currentPos = position.clone();
                      currentPos.y += hopY;
                      const dummyBase = new Object3D();
