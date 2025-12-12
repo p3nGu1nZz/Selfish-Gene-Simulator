@@ -82,35 +82,7 @@ export interface SimulationParams {
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      mesh: any;
-      group: any;
-      color: any;
-      fog: any;
-      ambientLight: any;
-      directionalLight: any;
-      pointLight: any;
-      spotLight: any;
-      instancedMesh: any;
-      primitive: any;
-      
-      // Geometries
-      planeGeometry: any;
-      sphereGeometry: any;
-      boxGeometry: any;
-      capsuleGeometry: any;
-      ringGeometry: any;
-      shapeGeometry: any;
-      bufferGeometry: any;
-      
-      // Materials
-      meshStandardMaterial: any;
-      meshBasicMaterial: any;
-      lineBasicMaterial: any;
-      
-      // Helpers & Others
-      gridHelper: any;
-      lineSegments: any;
-      bufferAttribute: any;
+      [elemName: string]: any;
     }
   }
 }

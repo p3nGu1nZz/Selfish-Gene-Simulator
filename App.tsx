@@ -248,6 +248,10 @@ export default function App() {
           <CameraFollower selectedAgent={selectedAgent} zoomDist={followZoom} />
           <KeyboardControls controlsRef={controlsRef} />
 
+          {/* 
+            Standard Controls: Left=Rotate, Right=Pan 
+            Using integer constants directly: 0=Rotate, 1=Dolly, 2=Pan
+          */}
           <OrbitControls 
             ref={controlsRef}
             makeDefault 
@@ -255,8 +259,8 @@ export default function App() {
             minDistance={5} 
             maxDistance={200}
             mouseButtons={{
-                LEFT: 2,   // Pan
-                RIGHT: 0,  // Rotate
+                LEFT: 0,   // Rotate
+                RIGHT: 2,  // Pan
                 MIDDLE: 1  // Dolly
             }}
           />
@@ -267,7 +271,7 @@ export default function App() {
 
        {/* Overlay Hints */}
       <div className="absolute bottom-4 left-4 text-white/30 text-xs pointer-events-none select-none z-10">
-        <p>Right Drag: Rotate • Left Drag: Pan • Arrow Keys: Pan • Scroll: Zoom</p>
+        <p>Left Drag: Rotate • Right Drag: Pan • Click: Select • Arrow Keys: Pan • Scroll: Zoom</p>
       </div>
     </div>
   );
