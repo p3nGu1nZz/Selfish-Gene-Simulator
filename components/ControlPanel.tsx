@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { SimulationParams, ViewMode, Entity } from '../systems/types';
-import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search, Settings, Footprints } from 'lucide-react';
+import { RefreshCcw, Play, Pause, Activity, Zap, Dna, Eye, Microscope, Scale, Gauge, CloudFog, X, Move, Clock, Target, Battery, Video, Search, Settings, Footprints, Sun, Moon } from 'lucide-react';
 
 interface ControlPanelProps {
   params: SimulationParams;
@@ -173,6 +173,57 @@ const LiveInspector: React.FC<{ agent: Entity, selectedAgentId: number | undefin
     );
 };
 
+// Clock Component
+const TimeDisplay: React.FC<{ time: number }> = ({ time }) => {
+    const isNight = time >= 20 || time < 5;
+    const hour = Math.floor(time);
+    const minute = Math.floor((time - hour) * 60);
+    const formattedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+
+    return (
+        <div className="absolute top-4 right-4 z-10 flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
+            {isNight ? <Moon size={16} className="text-blue-300" /> : <Sun size={16} className="text-yellow-400" />}
+            <span className="text-xl font-mono font-bold text-white tracking-widest">{formattedTime}</span>
+            <span className="text-xs font-bold text-gray-400 uppercase bg-white/10 px-1.5 py-0.5 rounded">Day {(time / 24).toFixed(0)}</span>
+        </div>
+    );
+};
+
+// Bottom Right HUD
+const HUD: React.FC<{ population: number, selfishness: number }> = ({ population, selfishness }) => {
+    return (
+        <div className="absolute bottom-10 right-4 z-10 flex flex-col items-end gap-2">
+             <div className="bg-black/60 backdrop-blur-md p-3 rounded-lg border border-white/10 w-48">
+                <div className="text-[10px] text-gray-400 flex items-center gap-1 mb-1 uppercase tracking-wider">
+                    <Activity size={10} /> Population
+                </div>
+                <div className="text-xl font-mono font-semibold text-white">{population}</div>
+            </div>
+            <div className="bg-black/60 backdrop-blur-md p-3 rounded-lg border border-white/10 w-48">
+                <div className="text-[10px] text-gray-400 flex items-center gap-1 mb-1 uppercase tracking-wider">
+                    <Dna size={10} /> Avg Selfishness
+                </div>
+                <div 
+                    className="text-xl font-mono font-semibold"
+                    style={{ color: `hsl(${360 * selfishness}, 70%, 60%)` }} 
+                >
+                    {(selfishness * 100).toFixed(1)}%
+                </div>
+                <div className="w-full h-1 bg-gray-700 mt-2 rounded-full overflow-hidden">
+                    <div 
+                        className="h-full transition-all duration-500"
+                        style={{ 
+                            width: `${selfishness * 100}%`,
+                            background: `linear-gradient(90deg, #4ade80 0%, #f87171 100%)` 
+                        }}
+                    />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   params,
   setParams,
@@ -204,14 +255,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     setParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  // Completely block arrow key navigation on inputs
   const preventArrowKeys = (e: React.KeyboardEvent) => {
-      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
-          e.preventDefault();
-          e.stopPropagation();
-      }
-      // Block Space as well to prevent toggling buttons if focused
-      if (e.key === ' ') {
+      if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
           e.preventDefault();
           e.stopPropagation();
       }
@@ -219,6 +264,9 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
   return (
     <>
+    <TimeDisplay time={params.timeOfDay} />
+    <HUD population={populationCount} selfishness={avgSelfishness} />
+
     {/* Floating Gear Icon to Open */}
     {!isOpen && (
         <button
@@ -232,10 +280,10 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
     {/* Main Control Box */}
     {isOpen && (
-    <div className="absolute top-4 left-4 z-10 w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl overflow-y-auto max-h-[90vh]">
+    <div className="absolute top-4 left-4 z-10 w-80 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl overflow-y-auto max-h-[85vh]">
             <div className="flex items-center justify-between mb-6">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-blue-400 to-purple-500 bg-clip-text text-transparent">
-                Gene Simulator
+                Rabbit Island
                 </h1>
                 <div className="flex gap-2">
                     <button
@@ -259,36 +307,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     >
                         <X size={16} />
                     </button>
-                </div>
-            </div>
-
-            {/* Stats */}
-            <div className="grid grid-cols-2 gap-3 mb-6">
-                <div className="bg-white/5 p-3 rounded-lg border border-white/5">
-                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                    <Activity size={12} /> Population
-                </div>
-                <div className="text-2xl font-mono font-semibold">{populationCount}</div>
-                </div>
-                <div className="bg-white/5 p-3 rounded-lg border border-white/5">
-                <div className="text-xs text-gray-400 flex items-center gap-1 mb-1">
-                    <Dna size={12} /> Avg Selfishness
-                </div>
-                <div 
-                    className="text-2xl font-mono font-semibold"
-                    style={{ color: `hsl(${360 * avgSelfishness}, 70%, 60%)` }} 
-                >
-                    {(avgSelfishness * 100).toFixed(1)}%
-                </div>
-                <div className="w-full h-1 bg-gray-700 mt-2 rounded-full overflow-hidden">
-                    <div 
-                        className="h-full transition-all duration-500"
-                        style={{ 
-                            width: `${avgSelfishness * 100}%`,
-                            background: `linear-gradient(90deg, #4ade80 0%, #f87171 100%)` 
-                        }}
-                    />
-                </div>
                 </div>
             </div>
 
@@ -445,23 +463,6 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     onKeyDown={preventArrowKeys}
                     onChange={(e) => handleChange('mutationMagnitude', parseFloat(e.target.value))}
                     className="w-full accent-purple-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <label className="text-xs font-medium text-gray-300 flex justify-between">
-                    <span>Energy Cost</span>
-                    <span className="text-orange-400">{params.energyCostPerTick}</span>
-                    </label>
-                    <input
-                    type="range"
-                    min="0.01"
-                    max="1.0"
-                    step="0.01"
-                    value={params.energyCostPerTick}
-                    onKeyDown={preventArrowKeys}
-                    onChange={(e) => handleChange('energyCostPerTick', parseFloat(e.target.value))}
-                    className="w-full accent-orange-500 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                     />
                 </div>
 

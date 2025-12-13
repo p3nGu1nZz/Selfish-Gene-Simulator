@@ -77,6 +77,8 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
     const allAgents = agents.entities;
     const allFood = food.entities;
     const allBurrows = burrows.entities;
+    const time = params.timeOfDay;
+    const isNight = time >= 20 || time < 5;
     
     // 0. Build Spatial Index (Optimization Step)
     agentHash.clear();
@@ -111,8 +113,17 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         agent.age += dt;
         agent.fear = Math.max(0, agent.fear - FEAR_DECAY * dt);
         
-        const metabolicCost = params.energyCostPerTick * dt * agent.genes.size; 
+        // Base metabolic cost
+        let metabolicCost = params.energyCostPerTick * dt * agent.genes.size; 
+        
+        // Recovery when sleeping/snuggling
+        if (agent.state === 'sleeping' || agent.state === 'snuggling' || agent.state === 'resting') {
+            metabolicCost = -ENERGY_REGEN_RATE * 0.3 * dt; // Regen energy slowly
+            if (agent.currentBurrowId) metabolicCost = -ENERGY_REGEN_RATE * dt; // Faster regen in burrow
+        }
+
         agent.energy -= metabolicCost;
+        if (agent.energy > 100) agent.energy = 100;
 
         if (agent.energy <= 0 || agent.age > params.maxAge) {
             spawnParticle(position, 'death', getAgentColor(entity));
@@ -127,14 +138,14 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         // High priority: Hidden in burrow
         if (agent.currentBurrowId !== null) {
             agent.state = 'sleeping';
-            agent.energy += ENERGY_REGEN_RATE * dt;
             velocity.set(0,0,0); 
 
             if (Math.random() < dt * 2) {
                 spawnParticle(position.clone().add(new Vector3(0,1,0)), 'zzz');
             }
 
-            if (agent.energy >= 85) {
+            // Wake up if full energy AND it's day time
+            if (agent.energy >= 95 && !isNight) {
                  agent.currentBurrowId = null;
                  agent.state = 'wandering';
                  position.y = 0;
@@ -149,8 +160,37 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         else if (agent.state === 'digging') {
             // Logic handled below
         }
-        else if (agent.energy < 20) {
+        else if (agent.energy < 30) {
              agent.state = 'seeking_food'; 
+        }
+        // 2. Sleep Schedule (Night time behavior)
+        else if (isNight && agent.energy < 90) {
+            if (agent.state !== 'sleeping' && agent.state !== 'snuggling') {
+                 // If we have a burrow, go to it
+                 if (agent.ownedBurrowId) {
+                     // Check distance
+                     const burrow = allBurrows.find(b => b.id === agent.ownedBurrowId);
+                     if (burrow) {
+                         if (position.distanceTo(burrow.position) < 2) {
+                             agent.currentBurrowId = burrow.id;
+                             agent.state = 'sleeping';
+                         } else {
+                             // Move towards burrow (handled in movement)
+                         }
+                     }
+                 } else {
+                     // No burrow, sleep on ground
+                     agent.state = 'sleeping';
+                 }
+            }
+            if (agent.state === 'sleeping') {
+                 if (Math.random() < dt * 0.5) spawnParticle(position.clone().add(new Vector3(0,1,0)), 'zzz');
+                 velocity.set(0,0,0);
+                 continue;
+            }
+        } 
+        else if (agent.state === 'sleeping' && !isNight) {
+             agent.state = 'wandering'; // Wake up
         }
 
         // -----------------------
@@ -186,20 +226,27 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                     nearestAgent = other;
                 }
 
+                // Update affinity based on proximity
                 const otherGenes = other.agent!.genes;
                 const geneticDiff = Math.abs(agent.genes.selfishness - otherGenes.selfishness);
                 const currentAffinity = agent.affinity[other.id] || 0;
                 let change = 0;
-                if (geneticDiff < 0.4) change += 20 * dt; 
+                // Like similar genes
+                if (geneticDiff < 0.3) change += 5 * dt; 
                 else change -= 2 * dt; 
+                
+                // Snuggling boosts affinity
+                if (agent.state === 'snuggling' && other.agent?.state === 'snuggling') {
+                    change += 20 * dt;
+                }
+
                 agent.affinity[other.id] = Math.max(-100, Math.min(100, currentAffinity + change));
             }
         }
 
-        const nearbyBurrows = burrowHash.query(position, 64); // Query larger area to check for spacing
+        const nearbyBurrows = burrowHash.query(position, 64); 
         for (const b of nearbyBurrows) {
             const distSq = position.distanceToSquared(b.position);
-            // We need nearest burrow for Seeking logic
             if (distSq < nearestBurrowDist) {
                 nearestBurrowDist = distSq;
                 nearestBurrow = b;
@@ -217,12 +264,9 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
 
         // A. DIGGING
         if (agent.state === 'digging') {
-            // Validate Spacing
             if (distToBurrow < MIN_BURROW_SPACING) {
-                // Too close to another burrow, abort
                 agent.state = 'wandering';
                 agent.digTimer = 0;
-                // Add a little nudge away
                 if (nearestBurrow) {
                     const away = tempVec.subVectors(position, nearestBurrow.position).normalize().multiplyScalar(5);
                     position.add(away);
@@ -232,7 +276,9 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                 agent.energy -= DIG_COST * dt;
                 velocity.set(0,0,0);
                 
-                if (Math.random() < dt * 10) spawnParticle(position, 'dirt');
+                if (Math.random() < dt * 15) {
+                    spawnParticle(position, 'dirt');
+                }
 
                 if (agent.digTimer > DIG_THRESHOLD) {
                     const b = spawnBurrow(position, entity.id, agent.genes.size);
@@ -247,40 +293,55 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
             continue; 
         }
 
-        // B. INTERACTION
-        if (nearestAgent && distToAgent < interactionRadius && nearestAgent.agent) {
+        // B. INTERACTION (Snuggling & Mating)
+        if (nearestAgent && distToAgent < interactionRadius * 1.5 && nearestAgent.agent) {
              const other = nearestAgent;
              const otherAgent = other.agent!;
-             
-             // Physics Push
+             const affinity = agent.affinity[other.id] || 0;
+             const isFriend = affinity > 20; 
+
+             // Physics Push (Soft collision)
              const overlap = interactionRadius - distToAgent;
              const normal = tempVec.subVectors(position, other.position).normalize();
-             const massA = agent.genes.size;
-             const massB = otherAgent.genes.size;
-             const totalMass = massA + massB;
-             if (overlap > 0) {
-                 const pushDist = overlap * 0.8;
-                 position.add(normal.clone().multiplyScalar((massB / totalMass) * pushDist));
-                 other.position.sub(normal.clone().multiplyScalar((massA / totalMass) * pushDist));
+             
+             // SNUGGLING LOGIC
+             // Condition: High affinity, wandering or resting state, not hungry, not fleeing
+             if (isFriend && 
+                (agent.state === 'wandering' || agent.state === 'resting' || agent.state === 'snuggling') && 
+                (otherAgent.state === 'wandering' || otherAgent.state === 'resting' || otherAgent.state === 'snuggling') &&
+                agent.energy > 40 && otherAgent.energy > 40 &&
+                !isNight) 
+             {
+                 agent.state = 'snuggling';
+                 // Gentle push to keep them close but not overlapping too much
+                 if (overlap > 0.1) {
+                      position.add(normal.clone().multiplyScalar(0.01));
+                 }
+                 velocity.set(0,0,0);
+                 
+                 // Chance to break snuggle
+                 if (Math.random() < dt * 0.5) {
+                     agent.state = 'wandering';
+                 }
+                 
+                 if (Math.random() < dt * 0.5) {
+                     spawnParticle(position.clone().lerp(other.position, 0.5), 'heart');
+                 }
+                 continue; // Skip movement logic
+             } 
+             // Stop Snuggling if conditions fail
+             else if (agent.state === 'snuggling') {
+                 agent.state = 'wandering';
              }
 
-             // Affinity Check
-             const affinity = agent.affinity[other.id] || 0;
-             const isEnemy = affinity < -50; 
-             const isFriend = affinity > 0; 
+             // Hard collision for non-snugglers
+             if (overlap > 0 && agent.state !== 'snuggling') {
+                 const pushDist = overlap * 0.8;
+                 position.add(normal.clone().multiplyScalar(0.5 * pushDist));
+                 other.position.sub(normal.clone().multiplyScalar(0.5 * pushDist));
+             }
 
-             if (isEnemy) {
-                 if (agent.genes.selfishness > 0.6 && agent.genes.size > otherAgent.genes.size) {
-                     agent.state = 'chasing';
-                     agent.target = other.position;
-                     agent.energy -= 2 * dt; 
-                     otherAgent.fear += 100 * dt; 
-                 } else {
-                     agent.fear += 30 * dt;
-                 }
-             } 
-             
-             // Mating
+             // Mating Logic (unchanged)
              if (isFriend && entity.id < other.id) {
                  const matingCooldown = 20; 
                  const MATURITY_AGE = 100;
@@ -318,6 +379,9 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                      }
                  }
              }
+        } else if (agent.state === 'snuggling') {
+            // Friend moved away
+            agent.state = 'wandering';
         }
 
         // C. MOVEMENT
@@ -346,10 +410,12 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                     steering.add(perp.multiplyScalar(2));
                     steering.add(toTarget.normalize().multiplyScalar(0.5));
                 }
-                if (Math.random() < dt * 0.5) agent.state = 'seeking_food';
+                // Break circle
+                if (Math.random() < dt * 0.8) agent.state = 'wandering';
             }
-            else if (nearestFood && nearestFood.food) {
-                if (distToFood < 5 && agent.energy > 50 && agent.state !== 'circling' && Math.random() < 0.1) {
+            else if (nearestFood && nearestFood.food && agent.state !== 'sleeping') {
+                if (distToFood < 3 && agent.energy > 80 && Math.random() < dt * 0.2) {
+                     // Only circle if very full and guarding food (rare)
                      agent.state = 'circling';
                      agent.target = nearestFood.position.clone();
                 } else {
@@ -368,33 +434,34 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                     }
                 }
             } 
-            else if (agent.energy < 70) { // Increased threshold to encourage finding/making home
-                if (agent.ownedBurrowId !== null) {
-                    const myBurrow = allBurrows.find(b => b.id === agent.ownedBurrowId);
-                    if (myBurrow) {
-                        const dist = position.distanceTo(myBurrow.position);
-                        targetDistForSpeed = dist;
-                        if (dist < 1) {
-                            agent.currentBurrowId = myBurrow.id;
-                            position.y = -1; 
-                        } else {
-                            tempVec2.subVectors(myBurrow.position, position).normalize().multiplyScalar(2.0);
-                            steering.add(tempVec2);
-                        }
+            // Return to Burrow logic (for sleeping)
+            else if ((isNight && agent.ownedBurrowId) || (agent.energy < 70 && agent.ownedBurrowId)) {
+                const myBurrow = allBurrows.find(b => b.id === agent.ownedBurrowId);
+                if (myBurrow) {
+                    const dist = position.distanceTo(myBurrow.position);
+                    targetDistForSpeed = dist;
+                    if (dist < 1.5) {
+                        agent.currentBurrowId = myBurrow.id;
+                        agent.state = 'sleeping';
+                        position.y = -1; 
                     } else {
-                        agent.ownedBurrowId = null; 
+                        tempVec2.subVectors(myBurrow.position, position).normalize().multiplyScalar(3.0);
+                        steering.add(tempVec2);
+                        agent.state = 'wandering'; // moving home
                     }
-                } else if (nearestBurrow && distToBurrow < 20) {
-                     // Try to steal or share? For now just go to it
+                } else {
+                    agent.ownedBurrowId = null; 
+                }
+            }
+            // Logic to create burrow
+            else if (agent.energy < 60 && !isNight) { 
+                if (nearestBurrow && distToBurrow < 20 && !agent.ownedBurrowId) {
                      const toBurrow = tempVec2.subVectors(nearestBurrow.position, position).normalize();
                      steering.add(toBurrow);
                      targetDistForSpeed = distToBurrow;
-                } else if (agent.energy < 60) { // Will dig sooner
-                    // Check if we are far enough from other burrows to dig
-                    if (distToBurrow > MIN_BURROW_SPACING) {
-                        agent.state = 'digging';
-                        agent.digTimer = 0;
-                    }
+                } else if (distToBurrow > MIN_BURROW_SPACING) {
+                    agent.state = 'digging';
+                    agent.digTimer = 0;
                 }
             }
             else {

@@ -5,7 +5,7 @@ import { Simulation } from './components/Simulation';
 import { ControlPanel } from './components/ControlPanel';
 import { DEFAULT_PARAMS } from './core/constants';
 import { SimulationParams, ViewMode, Entity } from './systems/types';
-import { Vector3, Spherical, MathUtils, MOUSE } from 'three';
+import { Vector3, Spherical, MathUtils, Color } from 'three';
 
 // Error Boundary to catch 404s on the model loader
 class SimulationErrorBoundary extends React.Component<
@@ -25,6 +25,73 @@ class SimulationErrorBoundary extends React.Component<
     }
     return this.props.children;
   }
+}
+
+// Lighting Controller
+const DayNightCycle = ({ time }: { time: number }) => {
+    // time is 0..24
+    // Noon is 12, Midnight is 0/24.
+    // Sun position: 
+    // At 6am (Sunrise), sun is at X+ or Z+ horizon.
+    // At 12pm, sun is Top.
+    // At 6pm, sun is opposite horizon.
+    
+    // Convert time to angle. 6am = 0, 12 = PI/2, 18 = PI
+    // We want 6 -> 0 rad, 12 -> PI/2, 18 -> PI.
+    // time 6 is start. (time - 6) / 12 * PI ?
+    // Let's just orbit Z.
+    
+    const angle = ((time - 6) / 24) * Math.PI * 2; 
+    const radius = 60;
+    const sunX = Math.cos(angle) * radius;
+    const sunY = Math.sin(angle) * radius;
+    
+    // Colors
+    // Day: White/Yellow
+    // Sunset: Orange/Red
+    // Night: Blue/Dark
+    
+    const isDay = time > 5 && time < 19;
+    const isSunrise = time > 5 && time < 7;
+    const isSunset = time > 17 && time < 19;
+    
+    let sunColor = new Color('#ffffff');
+    let intensity = 1.5;
+    let ambientIntensity = 0.4;
+    
+    if (isSunrise) {
+        sunColor.set('#ff9900');
+        intensity = 1.0;
+        ambientIntensity = 0.3;
+    } else if (isSunset) {
+        sunColor.set('#ff5500');
+        intensity = 0.8;
+        ambientIntensity = 0.2;
+    } else if (!isDay) {
+        sunColor.set('#0a0a2a'); // Moonlight
+        intensity = 0.2;
+        ambientIntensity = 0.1;
+    }
+
+    return (
+        <>
+            <ambientLight intensity={ambientIntensity} />
+            <directionalLight 
+                position={[sunX, Math.max(5, sunY), 20]} 
+                intensity={intensity} 
+                color={sunColor}
+                castShadow 
+                shadow-mapSize={[2048, 2048]} 
+                shadow-bias={-0.0001}
+                shadow-camera-left={-120}
+                shadow-camera-right={120}
+                shadow-camera-top={120}
+                shadow-camera-bottom={-120}
+                shadow-camera-near={0.1}
+                shadow-camera-far={300}
+            />
+        </>
+    )
 }
 
 // Component to handle camera following logic
@@ -178,6 +245,7 @@ export default function App() {
 
   const commonProps = {
     params,
+    setParams,
     paused,
     onStatsUpdate: handleStatsUpdate,
     resetTrigger,
@@ -224,14 +292,7 @@ export default function App() {
           <color attach="background" args={['#050505']} />
           {enableFog && <fog attach="fog" args={['#050505', 10, fogDistance]} />}
           
-          <ambientLight intensity={0.4} />
-          <directionalLight 
-            position={[50, 50, 25]} 
-            intensity={1.5} 
-            castShadow 
-            shadow-mapSize={[2048, 2048]} 
-            shadow-bias={-0.0001}
-          />
+          <DayNightCycle time={params.timeOfDay} />
           
           <SimulationErrorBoundary 
             fallback={(err) => {

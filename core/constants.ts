@@ -14,6 +14,7 @@ export const DEFAULT_PARAMS: SimulationParams = {
   reproductionThreshold: 50, 
   maxAge: 3000, 
   simulationSpeed: 1.0,
+  timeOfDay: 8.0, // Start at 8 AM
 };
 
 // Colors

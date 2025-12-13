@@ -15,7 +15,8 @@ export const spawnBurrow = (position: Vector3, ownerId: number, size: number): E
         burrow: {
             ownerId,
             occupants: [],
-            radius: size * 1.5 // Visual size relative to agent
+            radius: size * 1.5, // Visual size relative to agent
+            digProgress: 0
         }
     });
 };

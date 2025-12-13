@@ -1,7 +1,7 @@
 import React from 'react';
 import { useFrame } from '@react-three/fiber';
-import { FoodSystem, AgentSystem, ParticleSystem } from '../systems';
-import { SimulationParams, ViewMode } from '../types';
+import { FoodSystem, AgentSystem, ParticleSystem, BurrowSystem } from '../systems';
+import { SimulationParams, ViewMode } from '../systems/types';
 import { agents } from './ecs';
 import { getAgentColorRGB } from './utils';
 
@@ -10,15 +10,26 @@ interface LogicSystemProps {
     paused: boolean;
     onStatsUpdate: (count: number, avgSelfishness: number) => void;
     viewMode: ViewMode;
+    onTimeUpdate: (newTime: number) => void;
 }
 
-export const LogicSystem: React.FC<LogicSystemProps> = ({ params, paused, onStatsUpdate, viewMode }) => {
+export const LogicSystem: React.FC<LogicSystemProps> = ({ params, paused, onStatsUpdate, viewMode, onTimeUpdate }) => {
     useFrame((state, delta) => {
         const dt = paused ? 0 : Math.min(delta, 0.1) * params.simulationSpeed;
         
+        // Time Cycle Logic
+        if (!paused) {
+            const realSecondsPerGameDay = 120;
+            const hoursPerSecond = 24 / realSecondsPerGameDay;
+            let newTime = params.timeOfDay + (dt * hoursPerSecond);
+            if (newTime >= 24) newTime = 0;
+            onTimeUpdate(newTime);
+        }
+
         if (!paused) {
             FoodSystem(dt, params);
             AgentSystem(dt, params, (e) => getAgentColorRGB(e.agent!, viewMode));
+            BurrowSystem(dt);
         }
         
         if (!paused) {

@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Color, BufferGeometry, Vector3 as ThreeVector3, MathUtils } from 'three';
+import { InstancedMesh, Object3D, Color, BufferGeometry, Vector3 as ThreeVector3, CanvasTexture } from 'three';
 import { ViewMode } from '../../types';
 import { agents } from '../../core/ecs';
 import { MAX_POPULATION, AGENT_RADIUS_BASE } from '../../core/constants';
@@ -22,9 +22,26 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
     const eyesRef = useRef<InstancedMesh>(null);
     const pawsRef = useRef<InstancedMesh>(null);
     const energyBarMeshRef = useRef<InstancedMesh>(null);
+    const shadowMeshRef = useRef<InstancedMesh>(null);
 
     const tempObj = useMemo(() => new Object3D(), []);
     const tempColor = useMemo(() => new Color(), []);
+
+    const shadowTexture = useMemo(() => {
+        const canvas = document.createElement('canvas');
+        canvas.width = 128;
+        canvas.height = 128;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+            gradient.addColorStop(0, 'rgba(0,0,0,0.6)');
+            gradient.addColorStop(0.5, 'rgba(0,0,0,0.3)');
+            gradient.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 128, 128);
+        }
+        return new CanvasTexture(canvas);
+    }, []);
 
     useFrame((state) => {
         const allAgents = agents.entities;
@@ -63,6 +80,7 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
             if (eyesRef.current) eyesRef.current.count = count * 2;
             if (pawsRef.current) pawsRef.current.count = count * 2;
             if (energyBarMeshRef.current) energyBarMeshRef.current.count = showEnergyBars ? count : 0;
+            if (shadowMeshRef.current) shadowMeshRef.current.count = count;
 
             for (let i = 0; i < count; i++) {
                 const entity = allAgents[i];
@@ -77,8 +95,10 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 let hopY = 0;
                 let bodyTilt = 0;
                 
+                const isStaticState = agent.state === 'resting' || agent.state === 'sleeping' || agent.state === 'snuggling';
+
                 if (!isInBurrow) {
-                    if (agent.state !== 'resting' && agent.state !== 'sleeping' && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
+                    if (!isStaticState && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
                         const progress = agent.hopTimer / HOP_DURATION;
                         
                         // STOCHASTIC & FORCE BASED HOP HEIGHT
@@ -88,18 +108,20 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                         const speedFactor = Math.max(0.6, agent.genes.speed * 0.8);
                         
                         // Stochastic variation per jump
-                        // Create a stable random seed for this specific jump instance based on age + id
                         const jumpSeed = Math.floor(agent.age) + entity.id; 
-                        // Pseudo-random 0.8 to 1.2
                         const randomVar = (Math.sin(jumpSeed * 12.9898) * 0.5 + 0.5) * 0.4 + 0.8; 
                         
                         hopY = Math.sin(progress * Math.PI) * baseHeight * speedFactor * randomVar;
-                        
-                        // Tilt body into the jump based on speed
                         bodyTilt = -Math.sin(progress * Math.PI) * 0.3 * speedFactor;
 
-                    } else if (agent.state === 'resting' || agent.state === 'sleeping') {
+                    } else if (isStaticState) {
+                        // Gentle breathing
                         hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
+                        
+                        if (agent.state === 'snuggling') {
+                            // Lean in slightly
+                            bodyTilt = 0.1;
+                        }
                     } else if (agent.state === 'digging') {
                         // Rapid bobbing
                          hopY = Math.sin(state.clock.elapsedTime * 20) * 0.1 * scale;
@@ -132,6 +154,24 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                     bodyRef.current!.setColorAt(i, tempColor);
                 }
 
+                // Update Shadow
+                if (shadowMeshRef.current && !isInBurrow) {
+                    tempObj.position.set(position.x, 0.05, position.z); // Slightly above ground
+                    tempObj.rotation.set(-Math.PI / 2, 0, 0);
+                    
+                    const heightFactor = 1.0 / (1.0 + hopY * 0.5);
+                    const shadowScale = scale * 1.5 * heightFactor;
+                    
+                    tempObj.scale.set(shadowScale, shadowScale, 1);
+                    tempObj.updateMatrix();
+                    shadowMeshRef.current.setMatrixAt(i, tempObj.matrix);
+                } else if (shadowMeshRef.current) {
+                    // Hide shadow
+                    tempObj.scale.set(0, 0, 0);
+                    tempObj.updateMatrix();
+                    shadowMeshRef.current.setMatrixAt(i, tempObj.matrix);
+                }
+
                 // Energy Bar
                 if (energyBarMeshRef.current && showEnergyBars && !isInBurrow) {
                     const energyRatio = Math.min(agent.energy / 100, 1.0);
@@ -161,18 +201,17 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                      const scale = isInBurrow ? 0 : agent.genes.size * 3.5;
                      
                      let hopY = 0;
+                     const isStaticState = agent.state === 'resting' || agent.state === 'sleeping' || agent.state === 'snuggling';
+
                      if (!isInBurrow) {
-                         if (agent.state !== 'resting' && agent.state !== 'sleeping' && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
+                         if (!isStaticState && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
                              const progress = agent.hopTimer / HOP_DURATION;
-                             
-                             // Duplicate logic for procedural parts to match body position
                              const baseHeight = scale * 0.8; 
                              const speedFactor = Math.max(0.6, agent.genes.speed * 0.8);
                              const jumpSeed = Math.floor(agent.age) + entity.id; 
                              const randomVar = (Math.sin(jumpSeed * 12.9898) * 0.5 + 0.5) * 0.4 + 0.8; 
-                             
                              hopY = Math.sin(progress * Math.PI) * baseHeight * speedFactor * randomVar;
-                         } else if (agent.state === 'resting') {
+                         } else if (isStaticState) {
                              hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
                          }
                      }
@@ -228,6 +267,11 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
 
             targetMesh.instanceMatrix.needsUpdate = true;
             if (targetMesh.instanceColor) targetMesh.instanceColor.needsUpdate = true;
+            
+            if (shadowMeshRef.current) {
+                shadowMeshRef.current.instanceMatrix.needsUpdate = true;
+            }
+
             if (energyBarMeshRef.current) {
                 energyBarMeshRef.current.instanceMatrix.needsUpdate = true;
                 if (energyBarMeshRef.current.instanceColor) energyBarMeshRef.current.instanceColor.needsUpdate = true;
@@ -279,6 +323,21 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                     </instancedMesh>
                 </>
             )}
+
+            <instancedMesh 
+                ref={shadowMeshRef} 
+                args={[undefined, undefined, MAX_POPULATION]} 
+                frustumCulled={false}
+            >
+                <planeGeometry args={[1, 1]} />
+                <meshBasicMaterial 
+                    map={shadowTexture} 
+                    transparent={true} 
+                    opacity={0.8} 
+                    depthWrite={false} 
+                    alphaTest={0.01}
+                />
+            </instancedMesh>
 
             {showEnergyBars && (
                 <instancedMesh

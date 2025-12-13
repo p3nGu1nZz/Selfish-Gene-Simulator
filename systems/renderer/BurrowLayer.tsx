@@ -19,8 +19,13 @@ export const BurrowLayer: React.FC = () => {
                 // Burrow is slightly into the ground
                 tempObj.position.y = 0.1; 
                 
-                // Reduced scale multiplier from 2.0 to 1.3
-                const scale = ent.burrow.radius * 1.3; 
+                // Scale based on radius AND animation progress
+                const progress = ent.burrow.digProgress;
+                // Easing for pop effect (overshoot slightly)
+                const scaleMult = progress < 1 ? Math.sin(progress * Math.PI / 2) : 1; 
+                
+                const scale = ent.burrow.radius * 1.3 * scaleMult; 
+                
                 tempObj.scale.set(scale, scale * 0.3, scale); // Flattened sphere
                 tempObj.updateMatrix();
                 meshRef.current.setMatrixAt(i, tempObj.matrix);

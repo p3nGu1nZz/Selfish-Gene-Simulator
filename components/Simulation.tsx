@@ -13,6 +13,7 @@ const CARROT_MODEL_PATH = './assets/carrot/scene.gltf';
 
 interface SimulationProps {
   params: SimulationParams;
+  setParams: React.Dispatch<React.SetStateAction<SimulationParams>>;
   paused: boolean;
   onStatsUpdate: (count: number, avgSelfishness: number) => void;
   resetTrigger: number;
@@ -34,6 +35,7 @@ interface SimulationRootProps extends SimulationProps {
 
 const SimulationRoot: React.FC<SimulationRootProps> = ({ 
     params, 
+    setParams,
     paused, 
     onStatsUpdate, 
     resetTrigger, 
@@ -47,9 +49,6 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
     externalGeometry,
     foodModels
 }) => {
-  // Logic is now handled by LogicSystem component (Main Thread) 
-  // ensuring stability while benefiting from SpatialHash optimizations in AgentSystem.
-  
   // Handle Reset
   React.useEffect(() => {
     clearWorld();
@@ -67,6 +66,16 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
           paused={paused} 
           onStatsUpdate={onStatsUpdate} 
           viewMode={viewMode} 
+          onTimeUpdate={(newTime) => {
+              // We only update state if the minute changes significantly to prevent React trashing,
+              // or just pass it through. logicSystem runs every frame.
+              // To avoid re-rendering the whole tree 60fps, we can just update the ref in params?
+              // No, params is state.
+              // Let's optimize: Only setParams if minute changed > 10 mins game time or something?
+              // Or better, let the parent handle the smoothing.
+              // For now, simple approach:
+              setParams(p => ({ ...p, timeOfDay: newTime }));
+          }}
       />
       <RendererSystem 
           paused={paused}

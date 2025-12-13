@@ -17,7 +17,7 @@ export interface AgentData {
   genes: Genome;
   energy: number;
   age: number;
-  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting' | 'digging' | 'circling' | 'sleeping';
+  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting' | 'digging' | 'circling' | 'sleeping' | 'snuggling';
   target: Vector3 | null;
   trail: Vector3[];
   lastMated: number; 
@@ -40,6 +40,7 @@ export interface BurrowData {
   ownerId: number;
   occupants: number[];
   radius: number;
+  digProgress: number; // 0.0 to 1.0, used for spawn animation
 }
 
 export interface ParticleData {
@@ -76,6 +77,7 @@ export interface SimulationParams {
   reproductionThreshold: number;
   maxAge: number;
   simulationSpeed: number;
+  timeOfDay: number; // 0.0 to 24.0
 }
 
 // Global Augmentation
