@@ -276,7 +276,10 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                 agent.energy -= DIG_COST * dt;
                 velocity.set(0,0,0);
                 
-                if (Math.random() < dt * 15) {
+                // VISUALS: Emit dirt particles while digging
+                // Frequency increases slightly as they dig longer
+                const progress = agent.digTimer / DIG_THRESHOLD;
+                if (Math.random() < dt * (10 + 20 * progress)) {
                     spawnParticle(position, 'dirt');
                 }
 
