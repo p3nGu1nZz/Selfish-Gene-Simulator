@@ -1,4 +1,7 @@
-import { ViewMode } from '../systems/types';
+import { ViewMode } from './types';
+import { Color } from 'three';
+
+const tempColor = new Color();
 
 export const getAgentColorRGB = (agentData: any, viewMode: ViewMode): {r: number, g: number, b: number} => {
     let r, g, b;
@@ -13,9 +16,18 @@ export const getAgentColorRGB = (agentData: any, viewMode: ViewMode): {r: number
     } else if (viewMode === 'size') {
         const s = (agentData.genes.size - 0.5) / 1.5;
         r = 0.5 + s * 0.5; g = s * 0.5; b = 0.8 - s * 0.8;
-    } else { // Mutation
+    } else if (viewMode === 'mutation') {
         const s = agentData.genes.mutationRate * 5; 
         r = 0.5 + s * 0.5; g = 0.5; b = 0.5 + s * 0.5;
+    } else if (viewMode === 'affinity') {
+        // Inheritance Mode: Use the inherited Hue gene
+        // Saturation and Lightness are fixed/high to ensure visibility
+        tempColor.setHSL(agentData.genes.hue, 0.75, 0.6);
+        r = tempColor.r;
+        g = tempColor.g;
+        b = tempColor.b;
+    } else {
+        r = 1; g = 1; b = 1;
     }
     return { r, g, b };
 };

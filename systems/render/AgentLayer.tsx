@@ -1,9 +1,9 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { InstancedMesh, Object3D, Color, BufferGeometry, Vector3 as ThreeVector3, CanvasTexture } from 'three';
-import { ViewMode } from '../../types';
+import { ViewMode } from '../../core/types';
 import { agents } from '../../core/ecs';
-import { MAX_POPULATION, AGENT_RADIUS_BASE } from '../../core/constants';
+import { MAX_POPULATION, AGENT_RADIUS_BASE, HOP_DURATION } from '../../core/constants';
 import { getAgentColorRGB } from '../../core/utils';
 
 interface Props {
@@ -11,8 +11,6 @@ interface Props {
     externalGeometry?: BufferGeometry;
     showEnergyBars: boolean;
 }
-
-const HOP_DURATION = 0.3; // Must match AgentSystem
 
 export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEnergyBars }) => {
     const meshRef = useRef<InstancedMesh>(null);
@@ -87,50 +85,58 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 const { position, agent } = entity;
                 if (!agent) continue;
 
-                // VISIBILITY CHECK: If in burrow, scale to 0 or move away
+                // VISIBILITY CHECK: If in burrow, strictly hide
                 const isInBurrow = agent.currentBurrowId !== null;
                 const scale = isInBurrow ? 0 : agent.genes.size * 3.5;
                 
+                // If scale is 0, we can just set matrix to 0 scale and continue to save calculation, 
+                // but we need to ensure shadows/bars are also hidden.
+                if (isInBurrow) {
+                    tempObj.scale.set(0,0,0);
+                    tempObj.updateMatrix();
+                    targetMesh.setMatrixAt(i, tempObj.matrix);
+                    if (shadowMeshRef.current) shadowMeshRef.current.setMatrixAt(i, tempObj.matrix);
+                    if (energyBarMeshRef.current) energyBarMeshRef.current.setMatrixAt(i, tempObj.matrix);
+                    if (!hasExternal) {
+                        if (earsRef.current) { earsRef.current.setMatrixAt(i*2, tempObj.matrix); earsRef.current.setMatrixAt(i*2+1, tempObj.matrix); }
+                        if (tailRef.current) tailRef.current.setMatrixAt(i, tempObj.matrix);
+                        if (eyesRef.current) { eyesRef.current.setMatrixAt(i*2, tempObj.matrix); eyesRef.current.setMatrixAt(i*2+1, tempObj.matrix); }
+                        if (pawsRef.current) { pawsRef.current.setMatrixAt(i*2, tempObj.matrix); pawsRef.current.setMatrixAt(i*2+1, tempObj.matrix); }
+                    }
+                    continue; 
+                }
+
                 // Animation Logic
                 let hopY = 0;
                 let bodyTilt = 0;
+                let rootYOffset = 0;
                 
                 const isStaticState = agent.state === 'resting' || agent.state === 'sleeping' || agent.state === 'snuggling';
 
-                if (!isInBurrow) {
-                    if (!isStaticState && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
-                        const progress = agent.hopTimer / HOP_DURATION;
-                        
-                        // STOCHASTIC & FORCE BASED HOP HEIGHT
-                        const baseHeight = scale * 0.8; 
-                        
-                        // Modulate by Speed (Force) - faster rabbits jump higher/further
-                        const speedFactor = Math.max(0.6, agent.genes.speed * 0.8);
-                        
-                        // Stochastic variation per jump
-                        const jumpSeed = Math.floor(agent.age) + entity.id; 
-                        const randomVar = (Math.sin(jumpSeed * 12.9898) * 0.5 + 0.5) * 0.4 + 0.8; 
-                        
-                        hopY = Math.sin(progress * Math.PI) * baseHeight * speedFactor * randomVar;
-                        bodyTilt = -Math.sin(progress * Math.PI) * 0.3 * speedFactor;
+                if (!isStaticState && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
+                    const progress = agent.hopTimer / HOP_DURATION;
+                    const baseHeight = scale * 0.8; 
+                    const speedFactor = Math.max(0.6, agent.genes.speed * 0.8);
+                    const jumpSeed = Math.floor(agent.age) + entity.id; 
+                    const randomVar = (Math.sin(jumpSeed * 12.9898) * 0.5 + 0.5) * 0.4 + 0.8; 
+                    
+                    hopY = Math.sin(progress * Math.PI) * baseHeight * speedFactor * randomVar;
+                    bodyTilt = -Math.sin(progress * Math.PI) * 0.3 * speedFactor;
 
-                    } else if (isStaticState) {
-                        // Gentle breathing
-                        hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
-                        
-                        if (agent.state === 'snuggling') {
-                            // Lean in slightly
-                            bodyTilt = 0.1;
-                        }
-                    } else if (agent.state === 'digging') {
-                        // Rapid bobbing
-                         hopY = Math.sin(state.clock.elapsedTime * 20) * 0.1 * scale;
-                         bodyTilt = Math.PI / 4; // Head down
-                    }
+                } else if (isStaticState) {
+                    // Gentle breathing
+                    hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
+                    if (agent.state === 'snuggling') bodyTilt = 0.1;
+                } else if (agent.state === 'digging') {
+                    // Digging Animation: Rapid bobbing with head down and root motion downward
+                    const digCycle = (state.clock.elapsedTime * 15) % (Math.PI * 2);
+                    hopY = Math.sin(digCycle) * 0.1 * scale;
+                    bodyTilt = Math.PI / 3.5; // Steep head down
+                    rootYOffset = -0.2 * scale; // Sink slightly into ground
                 }
 
                 const currentPos = position.clone();
-                currentPos.y += hopY;
+                currentPos.y += hopY + rootYOffset;
 
                 const dummyBase = new Object3D();
                 dummyBase.position.copy(currentPos);
@@ -155,25 +161,20 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 }
 
                 // Update Shadow
-                if (shadowMeshRef.current && !isInBurrow) {
+                if (shadowMeshRef.current) {
                     tempObj.position.set(position.x, 0.05, position.z); // Slightly above ground
                     tempObj.rotation.set(-Math.PI / 2, 0, 0);
                     
-                    const heightFactor = 1.0 / (1.0 + hopY * 0.5);
+                    const heightFactor = 1.0 / (1.0 + Math.max(0, hopY) * 0.5);
                     const shadowScale = scale * 1.5 * heightFactor;
                     
                     tempObj.scale.set(shadowScale, shadowScale, 1);
                     tempObj.updateMatrix();
                     shadowMeshRef.current.setMatrixAt(i, tempObj.matrix);
-                } else if (shadowMeshRef.current) {
-                    // Hide shadow
-                    tempObj.scale.set(0, 0, 0);
-                    tempObj.updateMatrix();
-                    shadowMeshRef.current.setMatrixAt(i, tempObj.matrix);
-                }
+                } 
 
                 // Energy Bar
-                if (energyBarMeshRef.current && showEnergyBars && !isInBurrow) {
+                if (energyBarMeshRef.current && showEnergyBars) {
                     const energyRatio = Math.min(agent.energy / 100, 1.0);
                     const barColor = new Color().setHSL(energyRatio * 0.33, 1.0, 0.5); 
                     tempObj.position.copy(position);
@@ -183,44 +184,58 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                     tempObj.updateMatrix();
                     energyBarMeshRef.current.setMatrixAt(i, tempObj.matrix);
                     energyBarMeshRef.current.setColorAt(i, barColor);
-                } else if (energyBarMeshRef.current) {
-                     // Hide bar if in burrow
-                     tempObj.scale.set(0,0,0);
-                     tempObj.updateMatrix();
-                     energyBarMeshRef.current.setMatrixAt(i, tempObj.matrix);
-                }
+                } 
             }
 
             // Procedural Parts Update (if not using external model)
             if (!hasExternal && earsRef.current && eyesRef.current && pawsRef.current) {
+                // (Procedural loop repeats similar logic for positions, but we skip for brevity as structure is identical to body loop above)
+                // We must iterate again for parts to match the body logic we just did, or refactor to single loop.
+                // Refactoring for safety:
                 for (let i = 0; i < count; i++) {
                      const entity = allAgents[i];
                      if(!entity.agent) continue;
                      const { position, agent } = entity;
                      const isInBurrow = agent.currentBurrowId !== null;
-                     const scale = isInBurrow ? 0 : agent.genes.size * 3.5;
                      
-                     let hopY = 0;
-                     const isStaticState = agent.state === 'resting' || agent.state === 'sleeping' || agent.state === 'snuggling';
+                     if (isInBurrow) {
+                        // Parts already hidden by initial scale=0 check if we move this loop or add check here
+                         tempObj.scale.set(0,0,0); tempObj.updateMatrix();
+                         earsRef.current.setMatrixAt(i*2, tempObj.matrix); earsRef.current.setMatrixAt(i*2+1, tempObj.matrix);
+                         tailRef.current!.setMatrixAt(i, tempObj.matrix);
+                         eyesRef.current.setMatrixAt(i*2, tempObj.matrix); eyesRef.current.setMatrixAt(i*2+1, tempObj.matrix);
+                         pawsRef.current.setMatrixAt(i*2, tempObj.matrix); pawsRef.current.setMatrixAt(i*2+1, tempObj.matrix);
+                         continue;
+                     }
 
-                     if (!isInBurrow) {
-                         if (!isStaticState && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
-                             const progress = agent.hopTimer / HOP_DURATION;
-                             const baseHeight = scale * 0.8; 
-                             const speedFactor = Math.max(0.6, agent.genes.speed * 0.8);
-                             const jumpSeed = Math.floor(agent.age) + entity.id; 
-                             const randomVar = (Math.sin(jumpSeed * 12.9898) * 0.5 + 0.5) * 0.4 + 0.8; 
-                             hopY = Math.sin(progress * Math.PI) * baseHeight * speedFactor * randomVar;
-                         } else if (isStaticState) {
-                             hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
-                         }
+                     const scale = agent.genes.size * 3.5;
+                     
+                     // Re-calc anims (in optimized engine we'd cache this)
+                     let hopY = 0;
+                     let rootYOffset = 0;
+                     if (agent.state === 'digging') {
+                         hopY = Math.sin((state.clock.elapsedTime * 15) % (Math.PI * 2)) * 0.1 * scale;
+                         rootYOffset = -0.2 * scale;
+                     } else if (!['resting','sleeping','snuggling'].includes(agent.state) && agent.hopTimer < HOP_DURATION) {
+                         const progress = agent.hopTimer / HOP_DURATION;
+                         hopY = Math.sin(progress * Math.PI) * scale * 0.8 * Math.max(0.6, agent.genes.speed * 0.8) * ((Math.sin((Math.floor(agent.age)+entity.id)*12.9) * 0.5 + 0.5) * 0.4 + 0.8);
+                     } else if (['resting','sleeping','snuggling'].includes(agent.state)) {
+                         hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
                      }
 
                      const currentPos = position.clone();
-                     currentPos.y += hopY;
+                     currentPos.y += hopY + rootYOffset;
                      const dummyBase = new Object3D();
                      dummyBase.position.copy(currentPos);
                      dummyBase.lookAt(currentPos.clone().add(agent.heading));
+                     
+                     // Apply tilt again
+                     if(agent.state === 'digging') dummyBase.rotateX(Math.PI / 3.5);
+                     else if (agent.state === 'snuggling') dummyBase.rotateX(0.1);
+                     else if (agent.hopTimer < HOP_DURATION && !['resting','sleeping','snuggling'].includes(agent.state)) {
+                        const progress = agent.hopTimer / HOP_DURATION;
+                        dummyBase.rotateX(-Math.sin(progress * Math.PI) * 0.3 * Math.max(0.6, agent.genes.speed * 0.8));
+                     }
 
                      const { r, g, b } = getAgentColorRGB(agent, viewMode);
                      tempColor.setRGB(r, g, b);

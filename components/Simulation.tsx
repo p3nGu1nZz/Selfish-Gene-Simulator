@@ -1,29 +1,26 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
 import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, Color } from 'three';
-import { SimulationParams, ViewMode, Entity } from '../systems/types';
-import { clearWorld } from '../core/ecs';
+import { SimulationParams, ViewMode, AgentData } from '../core/types';
+import { clearWorld, agents } from '../core/ecs';
 import { spawnAgent, spawnFood, resetIds } from '../entities';
-import { LogicSystem } from '../core/LogicSystem';
-import { RendererSystem } from '../systems/Renderer';
-
-// Updated asset paths to be relative to the deployment root.
-const RABBIT_MODEL_PATH = './assets/rabbit_model.gltf';
-const CARROT_MODEL_PATH = './assets/carrot/scene.gltf';
+import { LogicSystem } from '../systems/LogicSystem';
+import { RenderSystem } from '../systems/render/RenderSystem';
+import { RABBIT_MODEL_PATH, CARROT_MODEL_PATH, ENABLE_EXTERNAL_MODELS } from '../core/constants';
 
 interface SimulationProps {
   params: SimulationParams;
   setParams: React.Dispatch<React.SetStateAction<SimulationParams>>;
   paused: boolean;
   onStatsUpdate: (count: number, avgSelfishness: number) => void;
+  onAgentUpdate: (data: AgentData | null) => void;
+  selectedAgentId: number | null;
+  onSelectAgent: (id: number | null) => void;
   resetTrigger: number;
   viewMode: ViewMode;
-  onHoverAgent: (agent: Entity | null) => void;
-  hoveredAgent: Entity | null;
-  onSelectAgent: (agent: Entity | null) => void;
-  selectedAgent: Entity | null;
   showEnergyBars: boolean;
   showTrails: boolean;
+  showGrid?: boolean;
   fallbackMode?: boolean;
 }
 
@@ -38,26 +35,32 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
     setParams,
     paused, 
     onStatsUpdate, 
+    onAgentUpdate,
+    selectedAgentId,
+    onSelectAgent,
     resetTrigger, 
     viewMode, 
-    onHoverAgent,
-    hoveredAgent,
-    onSelectAgent,
-    selectedAgent,
     showEnergyBars,
     showTrails,
+    showGrid,
     externalGeometry,
     foodModels
 }) => {
-  // Handle Reset
-  React.useEffect(() => {
+  
+  // Handle Reset and Initial Spawn
+  useEffect(() => {
     clearWorld();
     resetIds();
-    onHoverAgent(null);
-    onSelectAgent(null);
     for (let i = 0; i < params.initialPop; i++) spawnAgent();
     for (let i = 0; i < 20; i++) spawnFood(undefined, params.foodValue);
-  }, [resetTrigger, params.initialPop]);
+    
+    // Auto-select the first agent on reset
+    if (agents.entities.length > 0) {
+        onSelectAgent(agents.entities[0].id);
+    } else {
+        onSelectAgent(null);
+    }
+  }, [resetTrigger, params.initialPop]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
@@ -65,29 +68,24 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
           params={params} 
           paused={paused} 
           onStatsUpdate={onStatsUpdate} 
+          onAgentUpdate={onAgentUpdate}
+          selectedAgentId={selectedAgentId}
           viewMode={viewMode} 
           onTimeUpdate={(newTime) => {
-              // We only update state if the minute changes significantly to prevent React trashing,
-              // or just pass it through. logicSystem runs every frame.
-              // To avoid re-rendering the whole tree 60fps, we can just update the ref in params?
-              // No, params is state.
-              // Let's optimize: Only setParams if minute changed > 10 mins game time or something?
-              // Or better, let the parent handle the smoothing.
-              // For now, simple approach:
               setParams(p => ({ ...p, timeOfDay: newTime }));
           }}
       />
-      <RendererSystem 
+      <RenderSystem 
           paused={paused}
           viewMode={viewMode}
-          onHoverAgent={onHoverAgent}
-          hoveredAgent={hoveredAgent}
-          onSelectAgent={onSelectAgent}
-          selectedAgent={selectedAgent}
           showEnergyBars={showEnergyBars}
           showTrails={showTrails}
+          showGrid={showGrid || false}
           externalGeometry={externalGeometry}
           foodModels={foodModels}
+          selectedAgentId={selectedAgentId}
+          onSelectAgent={onSelectAgent}
+          timeOfDay={params.timeOfDay}
       />
     </>
   );
@@ -95,7 +93,6 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
 
 // --- Model Loader Wrapper ---
 const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
-    // Pass the string paths directly to useGLTF
     const { scene: rabbitScene } = useGLTF(RABBIT_MODEL_PATH);
     const { scene: carrotScene } = useGLTF(CARROT_MODEL_PATH);
     
@@ -115,12 +112,8 @@ const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
             if ((child as Mesh).isMesh) {
                 const mesh = child as Mesh;
                 const geo = mesh.geometry.clone();
-                
                 const originalMat = mesh.material as any;
-                const newMat = new MeshStandardMaterial({
-                     roughness: 0.8,
-                     metalness: 0.1
-                });
+                const newMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0.1 });
 
                 if (originalMat.map) {
                     newMat.map = originalMat.map;
@@ -133,7 +126,6 @@ const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
                          newMat.color.setHex(0xff8c00); 
                     }
                 }
-                
                 parts.push({ geometry: geo, material: newMat });
             }
         });
@@ -145,7 +137,6 @@ const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
                  m1.color.setHex(0x228b22);
              }
         }
-        
         return parts;
     }, [carrotScene]);
 
@@ -159,7 +150,7 @@ const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
 };
 
 export const Simulation: React.FC<SimulationProps> = ({ fallbackMode, ...props }) => {
-    if (fallbackMode) {
+    if (!ENABLE_EXTERNAL_MODELS || fallbackMode) {
         return <SimulationRoot {...props} />;
     }
     return <SimulationModelWrapper {...props} />;

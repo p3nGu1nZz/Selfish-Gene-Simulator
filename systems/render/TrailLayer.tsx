@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import { DynamicDrawUsage, BufferGeometry, AdditiveBlending } from 'three';
-import { ViewMode } from '../../types';
+import { ViewMode } from '../../core/types';
 import { agents } from '../../core/ecs';
 import { MAX_POPULATION, MAX_TRAIL_POINTS } from '../../core/constants';
 import { getAgentColorRGB } from '../../core/utils';

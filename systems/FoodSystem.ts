@@ -1,8 +1,8 @@
 import { Vector3 } from 'three';
 import { world, food, burrows } from '../core/ecs';
-import { SimulationParams } from './types';
+import { SimulationParams } from '../core/types';
 import { spawnFood } from '../entities/Food';
-import { WORLD_SIZE } from '../core/constants';
+import { WORLD_SIZE, MIN_BURROW_SPACING } from '../core/constants';
 
 const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 
@@ -17,6 +17,7 @@ export const FoodSystem = (dt: number, params: SimulationParams) => {
         const count = rand(1, 3);
         
         const allBurrows = burrows.entities;
+        const spacingSq = MIN_BURROW_SPACING * MIN_BURROW_SPACING;
 
         for(let k=0; k<count; k++) {
             // Ensure even the cluster spread doesn't hit the wall
@@ -24,10 +25,10 @@ export const FoodSystem = (dt: number, params: SimulationParams) => {
             const fz = Math.max(-limit, Math.min(limit, clusterZ + rand(-5,5)));
             const pos = new Vector3(fx, 0, fz);
 
-            // Check distance to all burrows
+            // Check distance to all burrows using the new MIN_BURROW_SPACING constant
             let tooClose = false;
             for(const b of allBurrows) {
-                if(b.position.distanceToSquared(pos) < 64) { // 8 units distance squared
+                if(b.position.distanceToSquared(pos) < spacingSq) { 
                     tooClose = true;
                     break;
                 }

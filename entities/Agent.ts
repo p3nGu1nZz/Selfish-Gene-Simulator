@@ -1,6 +1,6 @@
-import { Vector3 } from 'three';
+import { Vector3, MathUtils } from 'three';
 import { world } from '../core/ecs';
-import { Genome, Entity, AgentData } from '../systems/types';
+import { Genome, Entity, AgentData } from '../core/types';
 import { MAX_SPEED_BASE, WORLD_SIZE, FIRST_NAMES, LAST_NAMES } from '../core/constants';
 
 let nextAgentId = 0;
@@ -16,7 +16,7 @@ export const createRandomGenome = (): Genome => ({
   speed: rand(0.8, 1.5),
   size: rand(0.8, 1.2),
   mutationRate: rand(0.01, 0.1),
-  hue: 0,
+  hue: Math.random(), // Random base hue [0, 1]
 });
 
 export const generateName = (p1?: AgentData, p2?: AgentData): { first: string, last: string } => {
@@ -45,8 +45,35 @@ export const mutateGenome = (parent: Genome, magnitude: number): Genome => {
     speed: clamp(mutate(parent.speed), 0.5, 3.0),
     size: clamp(mutate(parent.size), 0.5, 2.0),
     mutationRate: clamp(mutate(parent.mutationRate), 0.01, 0.2),
-    hue: 0,
+    hue: clamp(mutate(parent.hue), 0, 1),
   };
+};
+
+// New: Mixes two genomes with HSV color inheritance logic
+export const mixGenomes = (g1: Genome, g2: Genome): Genome => {
+    const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
+    
+    // Average numerical traits
+    const baseSize = (g1.size + g2.size) / 2;
+    const baseSpeed = (g1.speed + g2.speed) / 2;
+    const baseSelfish = (g1.selfishness + g2.selfishness) / 2;
+    const baseMut = (g1.mutationRate + g2.mutationRate) / 2;
+
+    // HSV Color Inheritance
+    // We average the hue. Note: Circular average (shortest path) is better but simple average is fine for this scope.
+    // Add ±5% variance to Hue
+    const hueVariance = (Math.random() - 0.5) * 0.10; 
+    let newHue = ((g1.hue + g2.hue) / 2) + hueVariance;
+    if (newHue < 0) newHue += 1;
+    if (newHue > 1) newHue -= 1;
+
+    return {
+        size: clamp(baseSize + (Math.random() - 0.5) * 0.1, 0.5, 2.0),
+        speed: clamp(baseSpeed + (Math.random() - 0.5) * 0.1, 0.5, 3.0),
+        selfishness: clamp(baseSelfish + (Math.random() - 0.5) * 0.1, 0, 1),
+        mutationRate: clamp(baseMut + (Math.random() - 0.5) * 0.01, 0.01, 0.2),
+        hue: newHue
+    };
 };
 
 export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number, name?: {first: string, last: string}): Entity => {

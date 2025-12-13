@@ -1,39 +1,41 @@
 import React from 'react';
 import { useFrame } from '@react-three/fiber';
 import { FoodSystem, AgentSystem, ParticleSystem, BurrowSystem } from './index';
-import { SimulationParams, ViewMode } from './types';
+import { SimulationParams, ViewMode, AgentData } from '../core/types';
 import { agents } from '../core/ecs';
 import { getAgentColorRGB } from '../core/utils';
+import { REAL_SECONDS_PER_GAME_DAY } from '../core/constants';
 
 interface LogicSystemProps {
     params: SimulationParams;
     paused: boolean;
     onStatsUpdate: (count: number, avgSelfishness: number) => void;
+    onAgentUpdate: (data: AgentData | null) => void;
+    selectedAgentId: number | null;
     viewMode: ViewMode;
     onTimeUpdate: (newTime: number) => void;
 }
 
-export const LogicSystem: React.FC<LogicSystemProps> = ({ params, paused, onStatsUpdate, viewMode, onTimeUpdate }) => {
-    // We use a ref for time to avoid re-rendering this component unnecessarily, 
-    // although params is passed in.
-    
+export const LogicSystem: React.FC<LogicSystemProps> = ({ 
+    params, 
+    paused, 
+    onStatsUpdate, 
+    onAgentUpdate,
+    selectedAgentId,
+    viewMode, 
+    onTimeUpdate 
+}) => {
     useFrame((state, delta) => {
         const dt = paused ? 0 : Math.min(delta, 0.1) * params.simulationSpeed;
         
-        // Update Time of Day
+        // Time Cycle Logic
         if (!paused) {
-            // 24 game hours = 120 real seconds (approx) at 1x speed
-            // So 1 hour = 5 seconds
-            // dt is in seconds.
-            const realSecondsPerGameDay = 120;
-            const hoursPerSecond = 24 / realSecondsPerGameDay;
-            
+            const hoursPerSecond = 24 / REAL_SECONDS_PER_GAME_DAY;
             let newTime = params.timeOfDay + (dt * hoursPerSecond);
             if (newTime >= 24) newTime = 0;
-            
             onTimeUpdate(newTime);
         }
-        
+
         if (!paused) {
             FoodSystem(dt, params);
             AgentSystem(dt, params, (e) => getAgentColorRGB(e.agent!, viewMode));
@@ -44,13 +46,22 @@ export const LogicSystem: React.FC<LogicSystemProps> = ({ params, paused, onStat
             ParticleSystem(dt);
         }
 
+        // Low frequency updates (2Hz)
         if (state.clock.elapsedTime % 0.5 < 0.1) {
             const allAgents = agents.entities;
             let totalSelfishness = 0;
+            let selectedData: AgentData | null = null;
+
             for(const e of allAgents) {
-                if(e.agent) totalSelfishness += e.agent.genes.selfishness;
+                if(e.agent) {
+                    totalSelfishness += e.agent.genes.selfishness;
+                    if (e.id === selectedAgentId) {
+                        selectedData = { ...e.agent }; // Clone to avoid mutation issues in UI
+                    }
+                }
             }
             onStatsUpdate(allAgents.length, allAgents.length > 0 ? totalSelfishness / allAgents.length : 0);
+            onAgentUpdate(selectedData);
         }
     });
     return null;

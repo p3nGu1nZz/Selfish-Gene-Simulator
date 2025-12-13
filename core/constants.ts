@@ -1,9 +1,22 @@
-import { SimulationParams } from '../systems/types';
+import { SimulationParams } from './types';
 
-export const WORLD_SIZE = 200;
+export const WORLD_SIZE = 1024;
 export const MAX_POPULATION = 1200; 
 export const MAX_TRAIL_POINTS = 20;
 export const MIN_BURROW_SPACING = 32; // Rabbits ensure this distance between holes
+
+// Assets & Configuration
+export const RABBIT_MODEL_PATH = './assets/rabbit/rabbit_model.gltf';
+export const CARROT_MODEL_PATH = './assets/carrot/scene.gltf';
+export const ENABLE_EXTERNAL_MODELS = true;
+
+// Physics & Animation
+export const REAL_SECONDS_PER_GAME_DAY = 120;
+export const HOP_DURATION = 0.3; 
+export const ENERGY_REGEN_RATE = 10; 
+export const DIG_COST = 0.5;
+export const DIG_THRESHOLD = 8.0; 
+export const FEAR_DECAY = 5; 
 
 export const DEFAULT_PARAMS: SimulationParams = {
   initialPop: 40,
@@ -22,7 +35,7 @@ export const COLOR_ALTRUISTIC = '#4ade80'; // Green-ish
 export const COLOR_SELFISH = '#f87171'; // Red-ish
 export const COLOR_NEUTRAL = '#60a5fa'; // Blue-ish
 
-// Physics
+// Physics Base Values
 export const AGENT_RADIUS_BASE = 0.5;
 export const MAX_SPEED_BASE = 0.2;
 export const SENSOR_RADIUS = 15;

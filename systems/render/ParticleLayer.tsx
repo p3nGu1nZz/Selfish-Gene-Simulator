@@ -1,6 +1,6 @@
 import React, { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Shape, DoubleSide, AdditiveBlending, MeshBasicMaterial } from 'three';
+import { InstancedMesh, Object3D, Shape, DoubleSide, AdditiveBlending, MeshBasicMaterial, TextureLoader, CanvasTexture } from 'three';
 import { particles } from '../../core/ecs';
 import { Text } from '@react-three/drei';
 
@@ -13,6 +13,20 @@ heartShape.bezierCurveTo(x - 0.30, y + 0.55, x - 0.10, y + 0.77, x + 0.25, y + 0
 heartShape.bezierCurveTo(x + 0.60, y + 0.77, x + 0.80, y + 0.55, x + 0.80, y + 0.35);
 heartShape.bezierCurveTo(x + 0.80, y + 0.35, x + 0.80, y, x + 0.50, y);
 heartShape.bezierCurveTo(x + 0.35, y, x + 0.25, y + 0.25, x + 0.25, y + 0.25);
+
+// Create Zzz Texture
+const zzzTexture = (() => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 64;
+    canvas.height = 64;
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+        ctx.fillStyle = 'white';
+        ctx.font = 'bold 48px monospace';
+        ctx.fillText('Z', 16, 48);
+    }
+    return new CanvasTexture(canvas);
+})();
 
 export const ParticleLayer: React.FC = () => {
     const particleMeshRef = useRef<InstancedMesh>(null);
@@ -35,10 +49,15 @@ export const ParticleLayer: React.FC = () => {
                 const ent = allParticles[i];
                 const p = ent.particle!;
                 tempObj.position.copy(ent.position);
-                const scale = p.scale * (p.life / p.maxLife);
-                tempObj.scale.set(scale, scale, scale);
+                const normalizedLife = p.life / p.maxLife;
+                
+                // Fade out logic
+                const alpha = normalizedLife; 
                 
                 if (p.type === 'heart') {
+                    // Pulse scale slightly
+                    const scale = p.scale * (normalizedLife < 0.2 ? normalizedLife * 5 : 1.0);
+                    tempObj.scale.set(scale, scale, scale);
                     tempObj.lookAt(state.camera.position);
                     tempObj.rotateZ(p.rotation || 0);
                     tempObj.updateMatrix();
@@ -46,15 +65,19 @@ export const ParticleLayer: React.FC = () => {
                     hMesh.setColorAt(hCount, p.color);
                     hCount++;
                 } else if (p.type === 'zzz') {
+                    const scale = p.scale * normalizedLife; // Shrink as they fade
+                    tempObj.scale.set(scale, scale, scale);
                     tempObj.lookAt(state.camera.position);
-                    // Wiggle up
-                    tempObj.position.x += Math.sin(state.clock.elapsedTime * 5 + i) * 0.1;
+                    
+                    // Bobbing visual update (handled in System mostly, but fine tune here)
                     tempObj.updateMatrix();
                     zMesh.setMatrixAt(zCount, tempObj.matrix);
                     zMesh.setColorAt(zCount, p.color);
                     zCount++;
                 } else {
-                    tempObj.rotation.set(0,0,0);
+                    const scale = p.scale * normalizedLife;
+                    tempObj.scale.set(scale, scale, scale);
+                    tempObj.rotation.set(Math.random(), Math.random(), Math.random());
                     tempObj.updateMatrix();
                     pMesh.setMatrixAt(pCount, tempObj.matrix);
                     pMesh.setColorAt(pCount, p.color);
@@ -84,12 +107,12 @@ export const ParticleLayer: React.FC = () => {
             </instancedMesh>
             <instancedMesh ref={heartMeshRef} args={[undefined, undefined, 500]} frustumCulled={false}>
                 <shapeGeometry args={[heartShape]} />
+                {/* Additive Blending for hearts as requested */}
                 <meshBasicMaterial color="#ff69b4" side={DoubleSide} transparent opacity={0.9} blending={AdditiveBlending} depthWrite={false} />
             </instancedMesh>
-            {/* Simple representation for Zzz - using white quads for now, ideally text but instancing text is hard */}
              <instancedMesh ref={zzzRef} args={[undefined, undefined, 200]} frustumCulled={false}>
                  <planeGeometry args={[1, 1]} />
-                 <meshBasicMaterial color="white" side={DoubleSide} transparent opacity={0.8} />
+                 <meshBasicMaterial map={zzzTexture} transparent opacity={0.8} alphaTest={0.01} depthWrite={false} />
              </instancedMesh>
         </>
     );

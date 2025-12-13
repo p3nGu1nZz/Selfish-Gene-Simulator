@@ -1,6 +1,6 @@
 import { Vector3 } from 'three';
 import { world } from '../core/ecs';
-import { Entity } from '../systems/types';
+import { Entity } from '../core/types';
 
 let nextBurrowId = 0;
 

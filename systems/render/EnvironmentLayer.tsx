@@ -3,9 +3,10 @@ import { WORLD_SIZE } from '../../core/constants';
 
 interface Props {
     onSelectAgent: (val: null) => void;
+    showGrid: boolean;
 }
 
-export const EnvironmentLayer: React.FC<Props> = ({ onSelectAgent }) => {
+export const EnvironmentLayer: React.FC<Props> = ({ onSelectAgent, showGrid }) => {
     return (
         <>
             <mesh 
@@ -18,7 +19,7 @@ export const EnvironmentLayer: React.FC<Props> = ({ onSelectAgent }) => {
                 <planeGeometry args={[WORLD_SIZE, WORLD_SIZE]} />
                 <meshStandardMaterial color="#2d5a27" roughness={0.8} metalness={0.2} />
             </mesh>
-            <gridHelper args={[WORLD_SIZE, 20, 0x444444, 0x222222]} />
+            {showGrid && <gridHelper args={[WORLD_SIZE, 50, 0x444444, 0x222222]} />}
         </>
     );
 };
