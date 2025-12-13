@@ -63,7 +63,7 @@ const LiveInspector: React.FC<{ agent: Entity, selectedAgentId: number | undefin
     const data = agent.agent;
 
     return (
-        <div className="absolute top-4 right-4 z-10 w-72 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
+        <div className="absolute top-4 right-4 z-30 w-72 bg-black/80 backdrop-blur-md border border-white/10 rounded-xl p-5 text-white shadow-2xl animate-in fade-in slide-in-from-right-4 duration-200">
             <div className="flex items-start justify-between gap-3 mb-4 border-b border-white/10 pb-3">
                 <div className="flex items-center gap-3">
                     <div className="p-2 bg-white/10 rounded-full mt-1">
@@ -189,10 +189,10 @@ const TimeDisplay: React.FC<{ time: number }> = ({ time }) => {
     );
 };
 
-// Bottom Right HUD
+// HUD Component
 const HUD: React.FC<{ population: number, selfishness: number }> = ({ population, selfishness }) => {
     return (
-        <div className="absolute bottom-10 right-4 z-10 flex flex-col items-end gap-2">
+        <div className="absolute top-20 right-4 z-10 flex flex-col items-end gap-2">
              <div className="bg-black/60 backdrop-blur-md p-3 rounded-lg border border-white/10 w-48">
                 <div className="text-[10px] text-gray-400 flex items-center gap-1 mb-1 uppercase tracking-wider">
                     <Activity size={10} /> Population
