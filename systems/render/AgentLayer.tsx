@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Color, BufferGeometry, Vector3 as ThreeVector3, CanvasTexture } from 'three';
+import { InstancedMesh, Object3D, Color, BufferGeometry, Vector3 as ThreeVector3, CanvasTexture, Vector3 } from 'three';
 import { ViewMode } from '../../core/types';
 import { agents } from '../../core/ecs';
 import { MAX_POPULATION, AGENT_RADIUS_BASE, HOP_DURATION } from '../../core/constants';
@@ -20,6 +20,7 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
 
     const tempObj = useMemo(() => new Object3D(), []);
     const tempColor = useMemo(() => new Color(), []);
+    const tempVec = useMemo(() => new Vector3(), []);
     
     // Re-usable Object3D for calculations to avoid GC thrashing in loops
     const dummyBase = useMemo(() => new Object3D(), []);
@@ -101,19 +102,22 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                     rootYOffset = -0.2 * scale; // Sink slightly into ground
                 }
 
-                const currentPos = position.clone();
-                currentPos.y += hopY + rootYOffset;
-
-                dummyBase.position.copy(currentPos);
+                // Avoid clone: Use tempVec for current position calculation
+                tempVec.copy(position);
+                tempVec.y += hopY + rootYOffset;
                 
-                const lookTarget = currentPos.clone().add(agent.heading);
-                dummyBase.lookAt(lookTarget);
+                // Position dummyBase
+                dummyBase.position.copy(tempVec);
+                
+                // Calculate look target without cloning
+                tempObj.position.copy(tempVec).add(agent.heading);
+                dummyBase.lookAt(tempObj.position);
                 dummyBase.rotateX(bodyTilt);
 
                 const { r, g, b } = getAgentColorRGB(agent, viewMode);
                 tempColor.setRGB(r, g, b);
 
-                tempObj.position.copy(currentPos);
+                tempObj.position.copy(tempVec);
                 tempObj.rotation.copy(dummyBase.rotation);
                 tempObj.scale.set(scale, scale, scale);
                 tempObj.updateMatrix();

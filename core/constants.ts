@@ -6,9 +6,9 @@ export const MAX_TRAIL_POINTS = 10;
 export const MIN_BURROW_SPACING = 32; // Rabbits ensure this distance between holes
 
 // Assets & Configuration
-// using standard relative paths for public assets
-export const RABBIT_MODEL_PATH = 'assets/rabbit/rabbit_model.gltf';
-export const CARROT_MODEL_PATH = 'assets/carrot/scene.gltf'; 
+// using static assets from GitHub
+export const RABBIT_MODEL_PATH = 'https://raw.githubusercontent.com/p3nGu1nZz/Selfish-Gene-Simulator/main/assets/rabbit/rabbit_model.gltf';
+export const CARROT_MODEL_PATH = 'https://raw.githubusercontent.com/p3nGu1nZz/Selfish-Gene-Simulator/main/assets/carrot/scene.gltf'; 
 export const ENABLE_EXTERNAL_MODELS = true; 
 
 // Physics & Animation

@@ -117,7 +117,11 @@ export default function App() {
 
       <div className="absolute inset-0 z-0">
         {/* Adjusted initial camera position to be slightly further back: [0, 5, 8] */}
-        <Canvas shadows camera={{ position: [0, 5, 8], fov: 45, far: 5000 }}>
+        <Canvas 
+            shadows 
+            camera={{ position: [0, 5, 8], fov: 45, far: 5000 }}
+            gl={{ logarithmicDepthBuffer: true }}
+        >
           <color attach="background" args={['#050505']} />
           {enableFog && <fog attach="fog" args={['#101015', 10, fogDistance]} />}
           
@@ -148,8 +152,8 @@ export default function App() {
             enablePan={selectedAgentId === null}
             // Limit polar angle to avoid looking from below ground (PI/2 is horizon)
             maxPolarAngle={Math.PI / 2 - 0.1} 
-            minDistance={1} 
-            maxDistance={400} 
+            minDistance={10} 
+            maxDistance={250} 
             // Mouse Buttons: Left=Pan, Middle=Zoom, Right=Rotate
             mouseButtons={{
                 LEFT: MOUSE.PAN,

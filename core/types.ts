@@ -1,6 +1,5 @@
 import { Vector3, Color } from 'three';
 import React from 'react';
-import '@react-three/fiber';
 
 export type ViewMode = 'selfishness' | 'speed' | 'size' | 'mutation' | 'affinity' | 'energy' | 'fertility';
 
@@ -85,10 +84,58 @@ export interface SimulationParams {
 }
 
 // Global Augmentation to ensure R3F elements are recognized
+// We declare in both global and react module to ensure compatibility with different TS/React versions
 declare global {
   namespace JSX {
     interface IntrinsicElements {
-      // Explicitly allow common R3F elements
+      mesh: any;
+      group: any;
+      instancedMesh: any;
+      primitive: any;
+      ambientLight: any;
+      directionalLight: any;
+      pointLight: any;
+      spotLight: any;
+      fog: any;
+      color: any;
+      
+      // Geometries
+      boxGeometry: any;
+      sphereGeometry: any;
+      planeGeometry: any;
+      cylinderGeometry: any;
+      capsuleGeometry: any;
+      circleGeometry: any;
+      ringGeometry: any;
+      torusGeometry: any;
+      shapeGeometry: any;
+      bufferGeometry: any;
+      
+      // Materials
+      meshStandardMaterial: any;
+      meshBasicMaterial: any;
+      pointsMaterial: any;
+      shaderMaterial: any;
+      lineBasicMaterial: any;
+      
+      // Helpers
+      gridHelper: any;
+      axesHelper: any;
+      
+      // Others
+      points: any;
+      lineSegments: any;
+      bufferAttribute: any;
+
+      // Catch-all
+      [elemName: string]: any;
+    }
+  }
+}
+
+declare module 'react' {
+  namespace JSX {
+    interface IntrinsicElements {
       mesh: any;
       group: any;
       instancedMesh: any;

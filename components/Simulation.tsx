@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, DoubleSide } from 'three';
+import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, DoubleSide, Vector3 } from 'three';
 import { SimulationParams, ViewMode, AgentData } from '../core/types';
 import { clearWorld, agents } from '../core/ecs';
 import { spawnAgent, spawnFood, resetIds } from '../entities';
@@ -117,53 +117,66 @@ export const Simulation: React.FC<SimulationProps> = (props) => {
         rabbitScene.traverse((child) => {
             if ((child as Mesh).isMesh) {
                 const m = child as Mesh;
-                if (!geo) geo = m.geometry;
-                
-                // Fix Rabbit Textures (usually embedded)
-                const mat = m.material as MeshStandardMaterial;
-                if (mat.map) {
-                    mat.map.flipY = false;
-                    mat.needsUpdate = true;
+                if (!geo) {
+                    // Clone geometry so we can modify it safely
+                    geo = m.geometry.clone();
                 }
             }
         });
+        
+        if (geo) {
+            // Normalize Scale and Center
+            geo.computeBoundingBox();
+            const box = geo.boundingBox!;
+            const center = new Vector3();
+            box.getCenter(center);
+            const size = new Vector3();
+            box.getSize(size);
+            
+            // 1. Center geometry on X/Z, but align bottom to Y=0
+            geo.translate(-center.x, -box.min.y, -center.z);
+            
+            // 2. Normalize Scale (Fit to Unit Cube 1x1x1)
+            const maxDim = Math.max(size.x, size.y, size.z);
+            if (maxDim > 0) {
+                const scale = 1.0 / maxDim;
+                geo.scale(scale, scale, scale);
+            }
+        }
+
         return geo || new CapsuleGeometry(0.5, 1);
     }, [rabbitScene]);
 
     const carrotModels = useMemo(() => {
-        // Clone scene to avoid mutating global cache if used elsewhere
+        // Clone scene to avoid mutating global cache
         const scene = carrotScene.clone();
 
+        const parts: { geometry: BufferGeometry; material: Material, meshName: string }[] = [];
+        
+        // 1. Traverse and Collect Parts + Bake Transforms
         scene.traverse((child) => {
             if ((child as Mesh).isMesh) {
                 const m = child as Mesh;
+                
+                // Fix Materials
                 const mat = m.material as MeshStandardMaterial;
-                
-                // Heuristic: Check material or mesh name for 'leaf' to assign leaf texture properties
                 const lowerName = (mat.name + m.name).toLowerCase();
-                
-                // Remove texture to rely on color
-                mat.map = null;
-
+                mat.map = null; // Remove textures to use colors
                 if (lowerName.includes('leaf') || lowerName.includes('leaves')) {
-                    mat.color.setHex(0x4caf50); // Vibrant Green
+                    mat.color.setHex(0x4caf50); 
                     mat.transparent = true; 
                     mat.alphaTest = 0.5; 
                     mat.side = DoubleSide; 
                     mat.depthWrite = true;
                 } else {
-                    mat.color.setHex(0xff7f00); // Bright Orange
+                    mat.color.setHex(0xff7f00); 
                 }
-                
-                // Ensure material knows we might update maps later
                 mat.needsUpdate = true;
-            }
-        });
 
-        const parts: { geometry: BufferGeometry; material: Material, meshName: string }[] = [];
-        scene.traverse((child) => {
-            if ((child as Mesh).isMesh) {
-                const m = child as Mesh;
+                // Bake transform into geometry so we can discard the scene graph
+                m.updateWorldMatrix(true, false);
+                m.geometry.applyMatrix4(m.matrixWorld);
+
                 parts.push({ 
                     geometry: m.geometry, 
                     material: m.material as Material,
@@ -171,6 +184,43 @@ export const Simulation: React.FC<SimulationProps> = (props) => {
                 });
             }
         });
+
+        // 2. Normalize All Parts Together
+        if (parts.length > 0) {
+            let minX = Infinity, minY = Infinity, minZ = Infinity;
+            let maxX = -Infinity, maxY = -Infinity, maxZ = -Infinity;
+
+            // Calculate global bounds
+            parts.forEach(p => {
+                p.geometry.computeBoundingBox();
+                const b = p.geometry.boundingBox!;
+                minX = Math.min(minX, b.min.x);
+                minY = Math.min(minY, b.min.y);
+                minZ = Math.min(minZ, b.min.z);
+                maxX = Math.max(maxX, b.max.x);
+                maxY = Math.max(maxY, b.max.y);
+                maxZ = Math.max(maxZ, b.max.z);
+            });
+
+            const sizeX = maxX - minX;
+            const sizeY = maxY - minY;
+            const sizeZ = maxZ - minZ;
+            const maxDim = Math.max(sizeX, sizeY, sizeZ);
+            
+            const centerX = (minX + maxX) / 2;
+            const centerZ = (minZ + maxZ) / 2;
+            // Use minY to align bottom to 0
+
+            if (maxDim > 0) {
+                const s = 1.0 / maxDim;
+                parts.forEach(p => {
+                    // Translate center X/Z to 0, and bottom Y to 0
+                    p.geometry.translate(-centerX, -minY, -centerZ);
+                    p.geometry.scale(s, s, s);
+                });
+            }
+        }
+
         return parts;
     }, [carrotScene]);
 
