@@ -1,7 +1,7 @@
-import React, { useRef, useMemo, useState } from 'react';
+import React, { useRef, useMemo, useState, useEffect } from 'react';
 import '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Color } from 'three';
+import { InstancedMesh, Object3D, Color, Sphere, Vector3 } from 'three';
 import { agents } from '../../core/ecs';
 
 interface Props {
@@ -17,6 +17,17 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
     
     // Store pointer down state to manually detect clicks vs drags
     const downState = useRef<{ x: number, y: number, ts: number } | null>(null);
+
+    // FIX: Ensure the bounding sphere is large enough so Raycaster doesn't cull the mesh
+    // because the instances are spread far from the origin (0,0,0).
+    useEffect(() => {
+        if (hitMeshRef.current) {
+            hitMeshRef.current.geometry.boundingSphere = new Sphere(new Vector3(0,0,0), Infinity);
+        }
+        if (ringMeshRef.current) {
+            ringMeshRef.current.geometry.boundingSphere = new Sphere(new Vector3(0,0,0), Infinity);
+        }
+    }, []);
 
     useFrame((state) => {
         const allAgents = agents.entities;
@@ -160,6 +171,7 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
                 onPointerOver={handlePointerOver}
                 onPointerOut={handlePointerOut}
                 visible={true} 
+                frustumCulled={false}
             >
                 <boxGeometry args={[1, 1, 1]} />
                 {/* Invisible material for raycasting */}
