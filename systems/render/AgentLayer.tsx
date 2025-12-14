@@ -120,15 +120,20 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                     shadowMeshRef.current.setMatrixAt(i, tempObj.matrix);
                 } 
 
-                // Energy Bar
+                // Bar: Visualizing HUNGER (Survival)
                 if (energyBarMeshRef.current && showEnergyBars) {
-                    const energyRatio = Math.min(agent.energy / 100, 1.0);
-                    const barColor = new Color().setHSL(energyRatio * 0.33, 1.0, 0.5); 
+                    const hungerRatio = Math.max(0, Math.min(agent.hunger / 100, 1.0));
+                    // Color from Red (starving) to Green (full)
+                    const barColor = new Color().setHSL(hungerRatio * 0.33, 1.0, 0.5); 
+                    
                     tempObj.position.copy(position);
                     tempObj.position.y += (scale * AGENT_RADIUS_BASE * 1.5) + 2.5; 
                     tempObj.rotation.set(0,0,0);
-                    tempObj.scale.set(Math.max(0.01, energyRatio), 1, 1);
+                    
+                    // Width is fixed, X scale represents percent
+                    tempObj.scale.set(Math.max(0.01, hungerRatio), 1, 1);
                     tempObj.updateMatrix();
+                    
                     energyBarMeshRef.current.setMatrixAt(i, tempObj.matrix);
                     energyBarMeshRef.current.setColorAt(i, barColor);
                 } 
@@ -159,7 +164,6 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 castShadow
                 receiveShadow
             >
-                {/* Standard material without vertexColors prop ensures InstanceColor is used cleanly */}
                 <meshStandardMaterial roughness={0.4} metalness={0.5} color="white" />
             </instancedMesh>
 

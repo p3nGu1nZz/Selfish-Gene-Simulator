@@ -9,7 +9,7 @@ export interface Genome {
   size: number;
   mutationRate: number;
   hue: number;
-  energy: number;    // 0.0 - 1.0: Affects Max Energy and Drain Rate
+  energy: number;    // 0.0 - 1.0: Affects Metabolism (Hunger Decay)
   fertility: number; // 0.0 - 1.0: Affects Litter Size and Cooldown
 }
 
@@ -23,7 +23,8 @@ export interface ThoughtBubbleData {
 export interface AgentData {
   name: { first: string; last: string };
   genes: Genome;
-  energy: number;
+  energy: number; // Stamina (0-100)
+  hunger: number; // Satiety (0-100), 0 = Starving
   age: number;
   state: 'wandering' | 'exploring' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting' | 'digging' | 'circling' | 'sleeping' | 'snuggling';
   target: Vector3 | null;
@@ -84,7 +85,7 @@ export interface SimulationParams {
   foodSpawnRate: number;
   foodValue: number;
   mutationMagnitude: number;
-  energyCostPerTick: number;
+  energyCostPerTick: number; // Metabolic cost
   reproductionThreshold: number;
   maxAge: number;
   simulationSpeed: number;

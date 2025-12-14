@@ -98,6 +98,9 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
 
     // Standard Click Handling
     const handleClick = (e: any) => {
+        // Prevent selection if user was dragging camera
+        if (e.delta > 2) return;
+
         e.stopPropagation();
         const instanceId = e.instanceId;
         const allAgents = agents.entities;

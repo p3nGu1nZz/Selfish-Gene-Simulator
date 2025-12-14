@@ -62,7 +62,7 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
 
     const ageInDays = agent.age / REAL_SECONDS_PER_GAME_DAY;
     const isMature = ageInDays >= MATURITY_DAYS;
-    const maxEnergy = 50 + (agent.genes.energy * 100);
+    // Hunger is normalized 0-100 now, Energy (Stamina) is 0-100
     const potentialLitter = Math.round(MIN_LITTER_SIZE + (MAX_LITTER_SIZE - MIN_LITTER_SIZE) * agent.genes.fertility);
     
     return (
@@ -78,7 +78,6 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                  
                  <div className="text-gray-400">Age</div>
                  <div className="text-right font-mono">
-                     {/* Starts at 1 day old */}
                      <span className="text-white">{Math.floor(ageInDays) + 1} days</span>
                  </div>
 
@@ -90,10 +89,17 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                      }
                  </div>
 
-                 <div className="text-gray-400">Energy</div>
+                 <div className="text-gray-400">Hunger</div>
                  <div className="text-right text-white font-mono flex justify-end items-center gap-1">
-                     <span className={`${agent.energy < (maxEnergy*0.3) ? 'text-red-400' : 'text-green-400'}`}>
-                        {agent.energy.toFixed(0)} / {maxEnergy.toFixed(0)}
+                     <span className={`${agent.hunger < 30 ? 'text-red-400 animate-pulse' : 'text-green-400'}`}>
+                        {agent.hunger.toFixed(0)}%
+                     </span>
+                 </div>
+
+                 <div className="text-gray-400">Stamina</div>
+                 <div className="text-right text-white font-mono flex justify-end items-center gap-1">
+                     <span className={`${agent.energy < 30 ? 'text-yellow-400' : 'text-blue-400'}`}>
+                        {agent.energy.toFixed(0)}%
                      </span>
                  </div>
              </div>
@@ -115,8 +121,8 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                      <span className="text-yellow-300">{agent.genes.speed.toFixed(2)}x</span>
                  </div>
                  <div className="flex justify-between text-xs">
-                     <span className="text-gray-300">Energy</span>
-                     <span className="text-yellow-500">{(agent.genes.energy * 100).toFixed(0)}%</span>
+                     <span className="text-gray-300">Metabolism</span>
+                     <span className="text-yellow-500">{(agent.genes.energy * 100).toFixed(0)}% Eff.</span>
                  </div>
                  <div className="flex justify-between text-xs">
                      <span className="text-gray-300">Fertility</span>
@@ -398,7 +404,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     { id: 'speed', label: 'Speed', color: 'bg-blue-500' },
                                     { id: 'size', label: 'Size', color: 'bg-purple-500' },
                                     { id: 'mutation', label: 'Mutation', color: 'bg-pink-500' },
-                                    { id: 'energy', label: 'Energy Cap', color: 'bg-yellow-500' },
+                                    { id: 'energy', label: 'Energy Efficiency', color: 'bg-yellow-500' },
                                     { id: 'fertility', label: 'Fertility', color: 'bg-pink-400' },
                                     { id: 'affinity', label: 'Family (Hue)', color: 'bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500' },
                                 ].map((mode) => (
@@ -437,7 +443,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
 
                                 <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                                     <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
-                                        <Battery size={16} /> Show Energy Bars
+                                        <Battery size={16} /> Show Hunger Bars
                                     </label>
                                     <button 
                                         onClick={() => setShowEnergyBars(!showEnergyBars)}

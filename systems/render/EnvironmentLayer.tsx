@@ -163,13 +163,21 @@ export const EnvironmentLayer: React.FC<Props> = ({ onSelectAgent, showGrid }) =
     // Radius of the Island
     const islandRadius = WORLD_SIZE / 2;
 
+    const handleBackgroundClick = (e: any) => {
+        // Prevent deselection if the user was dragging (delta > 2 pixels)
+        if (e.delta > 2) return;
+        
+        e.stopPropagation(); 
+        onSelectAgent(null);
+    };
+
     return (
         <>
             {/* The Island: A Cylinder geometry to create a circular landmass */}
             <mesh 
                 position={[0, -2.5, 0]} 
                 receiveShadow
-                onClick={(e) => { e.stopPropagation(); onSelectAgent(null); }}
+                onClick={handleBackgroundClick}
                 onPointerOver={() => document.body.style.cursor = 'default'}
             >
                 {/* Height 5, positioned at -2.5 so top face is at y=0 */}

@@ -31,11 +31,15 @@ export const FoodLayer: React.FC<Props> = ({ models }) => {
                         const entity = allFood[i];
                         tempObj.position.copy(entity.position);
                         
+                        // Lift carrot up so it sits nicely on the grass
+                        tempObj.position.y = 0.3;
+                        
                         // Deterministic rotation
                         const seed = entity.id * 123.45; 
                         tempObj.rotation.set(0, (seed % (Math.PI * 2)), Math.PI / 8);
                         
-                        const scale = 0.15;
+                        // Increased scale for better visibility (was 0.15)
+                        const scale = 0.35;
                         tempObj.scale.set(scale, scale, scale);
                         
                         tempObj.updateMatrix();

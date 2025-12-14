@@ -104,14 +104,14 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
     const genome = genes || createRandomGenome();
     const agentName = name || generateName();
     
-    // Calculate initial max energy based on genome for starting energy
-    // Max energy is 50 + (genome.energy * 100) -> Range 50 to 150
-    const maxEnergy = 50 + (genome.energy * 100);
+    // Initial Stamina (Energy)
+    const startEnergy = parentEnergy !== undefined ? parentEnergy : 100;
 
     const baseAgent: AgentData = {
         name: agentName,
         genes: genome,
-        energy: parentEnergy || maxEnergy, // Start full if new, or inherited
+        energy: startEnergy, 
+        hunger: 100, // Full Satiety
         age: 0,
         state: 'wandering',
         target: null,
