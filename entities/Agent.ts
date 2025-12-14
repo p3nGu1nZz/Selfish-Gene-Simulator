@@ -125,7 +125,8 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
         affinity: {},
         ownedBurrowId: null,
         currentBurrowId: null,
-        digTimer: 0
+        digTimer: 0,
+        actionTimer: 0
     };
 
     const finalAgent = existingData ? { ...baseAgent, ...existingData } : baseAgent;

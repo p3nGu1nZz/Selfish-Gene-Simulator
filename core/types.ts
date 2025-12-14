@@ -20,7 +20,7 @@ export interface AgentData {
   genes: Genome;
   energy: number;
   age: number;
-  state: 'wandering' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting' | 'digging' | 'circling' | 'sleeping' | 'snuggling';
+  state: 'wandering' | 'exploring' | 'seeking_food' | 'fleeing' | 'chasing' | 'mating' | 'resting' | 'digging' | 'circling' | 'sleeping' | 'snuggling';
   target: Vector3 | null;
   trail: Vector3[];
   lastMated: number; 
@@ -33,6 +33,7 @@ export interface AgentData {
   ownedBurrowId: number | null;
   currentBurrowId: number | null; // If inside a burrow
   digTimer: number; // Progress for digging
+  actionTimer: number; // Tracks duration of current state/action
 }
 
 export interface FoodData {

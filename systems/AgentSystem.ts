@@ -327,13 +327,54 @@ const handleMovement = (entity: Entity, dt: number, nearestFood: Entity | null, 
                 agent.digTimer = 0;
             }
         }
-        // Wandering
+        // Wandering / Exploring
         else {
-            agent.state = 'wandering';
-            // Strong forward bias to create distinct hopping directions rather than jittery in-place rotation
-            const forwardBias = agent.heading.clone().multiplyScalar(4.0);
-            const noise = new Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).multiplyScalar(1.5);
-            steering.add(forwardBias.add(noise));
+             // Reset state if coming from other activities
+             if (agent.state !== 'wandering' && agent.state !== 'exploring') {
+                 agent.state = 'wandering';
+                 agent.target = null;
+                 agent.actionTimer = 0;
+             }
+
+             agent.actionTimer += dt;
+
+             if (agent.state === 'wandering') {
+                 // Randomly switch to exploring
+                 // Deterministic offset based on ID prevents all agents switching at once
+                 const threshold = 10 + (agent.genes.selfishness * 5) + (entity.id % 5);
+                 
+                 if (agent.actionTimer > threshold) {
+                    agent.state = 'exploring';
+                    agent.actionTimer = 0;
+                    // Pick random target in the world
+                    const range = (WORLD_SIZE / 2) * 0.8;
+                    agent.target = new Vector3(
+                        (Math.random() - 0.5) * 2 * range,
+                        0,
+                        (Math.random() - 0.5) * 2 * range
+                    );
+                 }
+
+                 // Improved Wandering Steering (Avoids circles)
+                 // Reduced forward bias + Increased random noise = More erratic/random movement
+                 const forwardBias = agent.heading.clone().multiplyScalar(1.5); 
+                 const noise = new Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).multiplyScalar(2.5);
+                 steering.add(forwardBias.add(noise));
+             } 
+             else if (agent.state === 'exploring') {
+                 const dist = agent.target ? position.distanceTo(agent.target) : 0;
+                 
+                 // End exploring if reached target or timeout (20-30s)
+                 if (!agent.target || dist < 8 || agent.actionTimer > 25) {
+                     agent.state = 'wandering';
+                     agent.target = null;
+                     agent.actionTimer = 0;
+                 } else {
+                     // Seek the explore target
+                     const toTarget = tempVec2.subVectors(agent.target, position).normalize().multiplyScalar(3.0);
+                     steering.add(toTarget);
+                 }
+             }
         }
 
         // Boundary Avoidance
