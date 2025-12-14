@@ -1,4 +1,5 @@
 import React from 'react';
+import '@react-three/fiber';
 import { Color } from 'three';
 import { WORLD_SIZE } from '../../core/constants';
 

@@ -1,4 +1,5 @@
 import React from 'react';
+import '@react-three/fiber';
 import { BufferGeometry, Material } from 'three';
 import { ViewMode } from '../../core/types';
 import { EnvironmentLayer } from './EnvironmentLayer';

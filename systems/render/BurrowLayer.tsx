@@ -1,4 +1,5 @@
 import React, { useRef, useMemo } from 'react';
+import '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
 import { InstancedMesh, Object3D, Color } from 'three';
 import { burrows } from '../../core/ecs';

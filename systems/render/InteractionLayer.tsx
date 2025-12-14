@@ -1,4 +1,5 @@
 import React, { useRef, useMemo, useState } from 'react';
+import '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
 import { InstancedMesh, Object3D, Color, Vector3 } from 'three';
 import { agents } from '../../core/ecs';

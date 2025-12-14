@@ -1,4 +1,5 @@
 import React, { useMemo, useRef } from 'react';
+import '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
 import { Vector3, Color, BackSide, ShaderMaterial, Mesh } from 'three';
 import { WORLD_SIZE } from '../../core/constants';

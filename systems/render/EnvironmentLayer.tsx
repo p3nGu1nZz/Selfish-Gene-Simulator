@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import '@react-three/fiber';
 import { DoubleSide, Color } from 'three';
 import { WORLD_SIZE } from '../../core/constants';
 

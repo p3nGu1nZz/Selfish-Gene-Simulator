@@ -1,4 +1,5 @@
 import React, { useRef, useMemo } from 'react';
+import '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
 import { DynamicDrawUsage, BufferGeometry, AdditiveBlending } from 'three';
 import { ViewMode } from '../../core/types';
