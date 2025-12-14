@@ -8,19 +8,17 @@ import { WORLD_SIZE } from '../../core/constants';
 export const DayNightCycle = ({ time }: { time: number }) => {
     const lightRef = useRef<DirectionalLight>(null);
 
+    // Modulo time so sun orbits correctly regardless of total days passed
+    const dayTime = time % 24;
+
     // Calculate sun angle: 6am = 0 rads (horizon), 12pm = PI/2 (zenith)
-    const angle = ((time - 6) / 24) * Math.PI * 2;
+    const angle = ((dayTime - 6) / 24) * Math.PI * 2;
     const radius = 100;
     
     const sinAngle = Math.sin(angle);
     const cosAngle = Math.cos(angle);
     
     // Light Position
-    // We use a single light that orbits. When sun sets, it swings under and becomes moon?
-    // Actually better to have it swing over top for moon to simulate moon orbit opposite sun.
-    // But for simple shadows, one directional light flipping sides works.
-    
-    const isDay = sinAngle > 0;
     const sunPos = { x: cosAngle * radius, y: sinAngle * radius, z: 20 };
     const moonPos = { x: -cosAngle * radius, y: -sinAngle * radius, z: 20 }; // Opposite
 
@@ -31,7 +29,6 @@ export const DayNightCycle = ({ time }: { time: number }) => {
     
     // Smooth Transitions
     // Day Factor: 1 at Noon, 0 at Horizon/Night.
-    // We want a twilight zone around 0.
     
     let targetColor = new Color();
     let intensity = 0;

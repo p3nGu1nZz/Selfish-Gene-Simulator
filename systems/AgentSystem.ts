@@ -412,11 +412,15 @@ const handleMovement = (entity: Entity, dt: number, nearestFood: Entity | null, 
              }
         }
 
-        // Boundary Avoidance
-        if (position.x > WORLD_SIZE/2 - 2) steering.x -= 10;
-        if (position.x < -WORLD_SIZE/2 + 2) steering.x += 10;
-        if (position.z > WORLD_SIZE/2 - 2) steering.z -= 10;
-        if (position.z < -WORLD_SIZE/2 + 2) steering.z += 10;
+        // Boundary Avoidance (Circular Island check for cleaner movement)
+        const distFromCenter = Math.sqrt(position.x * position.x + position.z * position.z);
+        const radiusLimit = (WORLD_SIZE / 2) - 5;
+        
+        if (distFromCenter > radiusLimit) {
+            // Steer towards center
+            tempVec2.set(-position.x, 0, -position.z).normalize().multiplyScalar(10);
+            steering.add(tempVec2);
+        }
 
         // Apply Steering
         // tempVec2 = targetDir
@@ -443,14 +447,19 @@ const handleMovement = (entity: Entity, dt: number, nearestFood: Entity | null, 
     } else {
         velocity.set(0, 0, 0);
     }
-    position.x = Math.max(-WORLD_SIZE/2, Math.min(WORLD_SIZE/2, position.x));
-    position.z = Math.max(-WORLD_SIZE/2, Math.min(WORLD_SIZE/2, position.z));
+    
+    // Circular Clamp
+    const limit = (WORLD_SIZE / 2) - 2;
+    if (position.length() > limit) {
+        position.setLength(limit);
+    }
 };
 
 // -- Main System --
 
 export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor: (e: Entity) => {r:number, g:number, b:number}) => {
-    const time = params.timeOfDay;
+    // Modulo time so day/night cycles still work even though timeOfDay accumulates
+    const time = params.timeOfDay % 24;
     const isNight = time >= 20 || time < 5;
     
     const allAgents = agents.entities;

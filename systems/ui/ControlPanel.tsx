@@ -37,16 +37,21 @@ interface ControlPanelProps {
 
 // Clock Component
 const TimeDisplay: React.FC<{ time: number }> = ({ time }) => {
-    const isNight = time >= 20 || time < 5;
-    const hour = Math.floor(time);
-    const minute = Math.floor((time - hour) * 60);
+    // Time loops every 24 hours
+    const dayTime = time % 24;
+    const isNight = dayTime >= 20 || dayTime < 5;
+    const hour = Math.floor(dayTime);
+    const minute = Math.floor((dayTime - hour) * 60);
     const formattedTime = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+    
+    // Day calculation: Start at Day 1, increment every 24h
+    const dayCount = Math.floor(time / 24) + 1;
 
     return (
         <div className="absolute top-4 right-4 z-10 flex items-center gap-3 bg-black/60 backdrop-blur-md px-4 py-2 rounded-full border border-white/10">
             {isNight ? <Moon size={16} className="text-blue-300" /> : <Sun size={16} className="text-yellow-400" />}
             <span className="text-xl font-mono font-bold text-white tracking-widest">{formattedTime}</span>
-            <span className="text-xs font-bold text-gray-400 uppercase bg-white/10 px-1.5 py-0.5 rounded">Day {(time / 24).toFixed(0)}</span>
+            <span className="text-xs font-bold text-gray-400 uppercase bg-white/10 px-1.5 py-0.5 rounded">Day {dayCount}</span>
         </div>
     );
 };
@@ -73,7 +78,8 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                  
                  <div className="text-gray-400">Age</div>
                  <div className="text-right font-mono">
-                     <span className="text-white">{Math.max(1, Math.floor(ageInDays))} day{Math.floor(ageInDays) !== 1 ? 's' : ''}</span>
+                     {/* Starts at 1 day old */}
+                     <span className="text-white">{Math.floor(ageInDays) + 1} days</span>
                  </div>
 
                  <div className="text-gray-400">Breeding</div>

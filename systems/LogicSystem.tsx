@@ -35,8 +35,8 @@ export const LogicSystem: React.FC<LogicSystemProps> = ({
         // Time Cycle Logic
         if (!paused) {
             const hoursPerSecond = 24 / REAL_SECONDS_PER_GAME_DAY;
-            let newTime = params.timeOfDay + (dt * hoursPerSecond);
-            if (newTime >= 24) newTime = 0;
+            // Allow time to grow indefinitely (Day 1, Day 2, etc.)
+            const newTime = params.timeOfDay + (dt * hoursPerSecond);
             onTimeUpdate(newTime);
         }
 

@@ -5,7 +5,7 @@ import { Vector3, Color, BackSide, ShaderMaterial, Mesh, MathUtils } from 'three
 import { WORLD_SIZE } from '../../core/constants';
 
 interface Props {
-    timeOfDay: number; // 0-24
+    timeOfDay: number; // Cumulative Hours
 }
 
 const SkyShaderMaterial = {
@@ -45,8 +45,11 @@ export const SkyLayer: React.FC<Props> = ({ timeOfDay }) => {
     const sunRef = useRef<Mesh>(null);
     const moonRef = useRef<Mesh>(null);
     
+    // Use modulo for orbit cycle
+    const dayTime = timeOfDay % 24;
+    
     // Calculate orbital positions
-    const angle = ((timeOfDay - 6) / 24) * Math.PI * 2;
+    const angle = ((dayTime - 6) / 24) * Math.PI * 2;
     const radius = 1600; 
     
     const sunPos = new Vector3(Math.cos(angle) * radius, Math.sin(angle) * radius, 0);
@@ -146,7 +149,7 @@ export const SkyLayer: React.FC<Props> = ({ timeOfDay }) => {
             </mesh>
             
             {/* Stars - visible when sun is low */}
-            <points rotation={[0, 0, timeOfDay * 0.02]}>
+            <points rotation={[0, 0, dayTime * 0.02]}>
                 <bufferGeometry>
                     <bufferAttribute 
                         attach="attributes-position" 
