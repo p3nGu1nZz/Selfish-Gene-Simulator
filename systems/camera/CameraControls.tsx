@@ -10,7 +10,7 @@ export const CameraFollower = ({ selectedAgentId, controlsRef }: { selectedAgent
     const prevId = useRef<number | null>(null);
     const prevTargetPos = useRef<Vector3>(new Vector3());
 
-    useFrame(() => {
+    useFrame((state, deltaSeconds) => {
         if (!controlsRef.current) return;
         
         if (selectedAgentId === null) {
@@ -42,6 +42,7 @@ export const CameraFollower = ({ selectedAgentId, controlsRef }: { selectedAgent
             prevId.current = selectedAgentId;
             prevTargetPos.current.copy(currentPos);
             
+            // Manual update only on switch to ensure snap
             controls.update();
         } else {
             // Update: Move camera along with the agent
@@ -66,8 +67,10 @@ export const CameraFollower = ({ selectedAgentId, controlsRef }: { selectedAgent
                 if (controlsRef.current.target.y < 0) {
                     controlsRef.current.target.y = 0;
                 }
-
-                controlsRef.current.update();
+                
+                // NOTE: Do NOT call controls.update() here. 
+                // The OrbitControls component (drei) manages its own update loop with damping.
+                // Calling it here causes fighting and jitter.
             }
             
             // Extra safety: Continuously clamp camera height even if not moving

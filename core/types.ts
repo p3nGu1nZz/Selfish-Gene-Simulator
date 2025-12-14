@@ -13,6 +13,12 @@ export interface Genome {
   fertility: number; // 0.0 - 1.0: Affects Litter Size and Cooldown
 }
 
+export interface ThoughtBubbleData {
+  type: 'heart' | 'angry' | 'zzz';
+  timer: number;
+  maxTime: number;
+}
+
 // Component Data Interfaces
 export interface AgentData {
   name: { first: string; last: string };
@@ -33,6 +39,8 @@ export interface AgentData {
   currentBurrowId: number | null; // If inside a burrow
   digTimer: number; // Progress for digging
   actionTimer: number; // Tracks duration of current state/action
+  
+  thoughtBubble: ThoughtBubbleData | null;
 }
 
 export interface FoodData {
@@ -47,7 +55,7 @@ export interface BurrowData {
 }
 
 export interface ParticleData {
-  type: 'particle' | 'heart' | 'dirt' | 'zzz';
+  type: 'particle' | 'dirt' | 'birth' | 'death';
   life: number;
   maxLife: number;
   color: Color;
@@ -84,7 +92,6 @@ export interface SimulationParams {
 }
 
 // Global Augmentation to ensure R3F elements are recognized
-// We declare in both global and react module to ensure compatibility with different TS/React versions
 declare global {
   namespace JSX {
     interface IntrinsicElements {

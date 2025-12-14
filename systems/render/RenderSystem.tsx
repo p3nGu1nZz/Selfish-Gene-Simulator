@@ -10,6 +10,7 @@ import { ParticleLayer } from './ParticleLayer';
 import { BurrowLayer } from './BurrowLayer';
 import { InteractionLayer } from './InteractionLayer';
 import { SkyLayer } from './SkyLayer';
+import { ThoughtBubbleLayer } from './ThoughtBubbleLayer';
 
 export interface RendererProps {
     paused: boolean;
@@ -45,9 +46,10 @@ export const RenderSystem: React.FC<RendererProps> = ({
                 externalGeometry={externalGeometry}
                 showEnergyBars={showEnergyBars}
             />
-            {showTrails && <TrailLayer viewMode={viewMode} />}
+            {showTrails ? <TrailLayer viewMode={viewMode} /> : null}
             <FoodLayer models={foodModels} />
             <ParticleLayer />
+            <ThoughtBubbleLayer />
             <InteractionLayer selectedAgentId={selectedAgentId} onSelectAgent={onSelectAgent} />
         </group>
     );

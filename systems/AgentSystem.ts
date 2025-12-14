@@ -231,9 +231,10 @@ const handleInteraction = (entity: Entity, dt: number, nearestAgent: Entity | nu
              velocity!.set(0,0,0);
              if (Math.random() < dt * 0.5) agent.state = 'wandering';
              
-             // Particle spawn lerp
-             tempVec2.copy(position).lerp(other.position, 0.5);
-             if (Math.random() < dt * 0.5) spawnParticle(tempVec2, 'heart', undefined, agent.genes.size);
+             // Thought Bubble: Heart
+             if (Math.random() < dt * 0.5 && !agent.thoughtBubble) {
+                 agent.thoughtBubble = { type: 'heart', timer: 2.0, maxTime: 2.0 };
+             }
              return; 
          } 
          else if ((agent.state as string) === 'snuggling') agent.state = 'wandering';
@@ -272,8 +273,9 @@ const handleInteraction = (entity: Entity, dt: number, nearestAgent: Entity | nu
                  tempVec2.copy(position).lerp(other.position, 0.5);
                  const midPoint = tempVec2;
                  
-                 // Burst of hearts from mid-point
-                 spawnParticle(midPoint, 'heart', undefined, agent.genes.size);
+                 // Burst of hearts from mid-point via thought bubbles on parents
+                 agent.thoughtBubble = { type: 'heart', timer: 3.0, maxTime: 3.0 };
+                 otherAgent.thoughtBubble = { type: 'heart', timer: 3.0, maxTime: 3.0 };
 
                  const pairFertility = (agent.genes.fertility + otherAgent.genes.fertility) / 2;
                  const litterMin = MIN_LITTER_SIZE;
@@ -305,6 +307,20 @@ const handleMovement = (entity: Entity, dt: number, nearestFood: Entity | null, 
     agent.hopTimer += dt;
     if (agent.hopTimer >= cycleTime) agent.hopTimer = 0;
     
+    // ANGER TRIGGER: Food Competition
+    // If we were seeking food, but now there is no nearest food (stolen), or we are fleeing
+    if (agent.state === 'seeking_food' && (!nearestFood || !nearestFood.food)) {
+        // The food we were chasing is gone
+        if (Math.random() < 0.3) {
+            agent.thoughtBubble = { type: 'angry', timer: 2.0, maxTime: 2.0 };
+        }
+        agent.state = 'wandering';
+        agent.target = null;
+    } else if (agent.state === 'fleeing' && Math.random() < dt * 0.2) {
+        // Occasional anger while fleeing
+        agent.thoughtBubble = { type: 'angry', timer: 2.0, maxTime: 2.0 };
+    }
+
     if (agent.hopTimer < HOP_DURATION) {
         // tempVec used for steering
         const steering = tempVec.set(0, 0, 0);
@@ -464,14 +480,12 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
     
     const allAgents = agents.entities;
 
-    // Extinction Prevention: If population drops too low, spawn new random agents
-    // We check for very low population and a small chance per frame to avoid instant flooding
+    // Extinction Prevention
     if (allAgents.length < 3 && Math.random() < dt * 0.5) {
-        // Calling spawnAgent without position ensures random world placement
         spawnAgent(); 
     }
 
-    // Clear and fill hashes (Reuses memory internally)
+    // Clear and fill hashes
     agentHash.clear(); 
     foodHash.clear(); 
     burrowHash.clear();
@@ -497,6 +511,14 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
 
         // Dynamic Max Energy based on Energy Gene
         const maxEnergy = 50 + (agent.genes.energy * 100);
+
+        // Update Thought Bubble Timer
+        if (agent.thoughtBubble) {
+            agent.thoughtBubble.timer -= dt;
+            if (agent.thoughtBubble.timer <= 0) {
+                agent.thoughtBubble = null;
+            }
+        }
 
         // Trail Update
         if (velocity.lengthSq() > 0.01 && !agent.currentBurrowId) {
@@ -529,9 +551,10 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         if (agent.currentBurrowId !== null) {
             agent.state = 'sleeping';
             velocity.set(0,0,0); 
-            // Zzz particles
-            // tempVec reuse for spawn
-            if (Math.random() < dt * 0.8) spawnParticle(tempVec.copy(position), 'zzz', undefined, agent.genes.size);
+            // While sleeping in burrow, sometimes show Zzz thought bubble
+            if (Math.random() < dt * 0.5 && !agent.thoughtBubble) {
+                 agent.thoughtBubble = { type: 'zzz', timer: 2.0, maxTime: 2.0 };
+            }
             
             // Wake up threshold
             if (agent.energy >= (maxEnergy * 0.95) && !isNight) {
@@ -555,7 +578,9 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
             } else agent.state = 'sleeping';
         } 
         if (agent.state === 'sleeping' && isNight) {
-             if (Math.random() < dt * 0.8) spawnParticle(tempVec.copy(position), 'zzz', undefined, agent.genes.size);
+             if (Math.random() < dt * 0.5 && !agent.thoughtBubble) {
+                  agent.thoughtBubble = { type: 'zzz', timer: 2.0, maxTime: 2.0 };
+             }
              velocity.set(0,0,0);
              continue;
         } else if (agent.state === 'sleeping' && !isNight) agent.state = 'wandering';
@@ -587,6 +612,11 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                 if(distSq < nearestAgentDist) { nearestAgentDist = distSq; nearestAgent = other; }
                 const geneticDiff = Math.abs(agent.genes.selfishness - other.agent!.genes.selfishness);
                 agent.affinity[other.id] = Math.max(-100, Math.min(100, (agent.affinity[other.id]||0) + (geneticDiff < 0.3 ? 5 : -2) * dt));
+                
+                // AFFINITY HEART TRIGGER
+                if (geneticDiff < 0.2 && Math.random() < 0.005 && !agent.thoughtBubble) {
+                     agent.thoughtBubble = { type: 'heart', timer: 1.5, maxTime: 1.5 };
+                }
             }
         }
 

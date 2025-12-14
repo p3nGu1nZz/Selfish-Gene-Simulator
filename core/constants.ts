@@ -36,7 +36,7 @@ export const DEFAULT_PARAMS: SimulationParams = {
   foodSpawnRate: 4, 
   foodValue: 40,
   mutationMagnitude: 0.1,
-  energyCostPerTick: 0.03, 
+  energyCostPerTick: 0.1, 
   reproductionThreshold: 50, 
   maxAge: 3000, 
   simulationSpeed: 1.0,

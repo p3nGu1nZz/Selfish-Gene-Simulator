@@ -1,7 +1,6 @@
 import React, { useState, useCallback, useRef, Suspense } from 'react';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stats } from '@react-three/drei';
-import { MOUSE } from 'three';
 import { Simulation } from '../components/Simulation';
 import { ControlPanel } from '../systems/ui/ControlPanel';
 import { TitleScreen } from '../systems/ui/TitleScreen';
@@ -116,21 +115,16 @@ export default function App() {
       />
 
       <div className="absolute inset-0 z-0">
-        {/* Adjusted initial camera position to be slightly further back: [0, 5, 8] */}
         <Canvas 
             shadows 
-            camera={{ position: [0, 5, 8], fov: 45, far: 5000 }}
+            camera={{ position: [0, 15, 25], fov: 45, far: 5000 }}
             gl={{ logarithmicDepthBuffer: true }}
         >
           <color attach="background" args={['#050505']} />
-          {enableFog && <fog attach="fog" args={['#101015', 10, fogDistance]} />}
+          {enableFog ? <fog attach="fog" args={['#101015', 10, fogDistance]} /> : null}
           
           <DayNightCycle time={params.timeOfDay} />
           
-          {/* 
-            If model loading fails, we now show the ErrorScreen via Html overlay 
-            instead of a fallback simulation mode.
-          */}
           <SimulationErrorBoundary fallback={(err) => (
             <ErrorScreen 
                 error={err} 
@@ -148,25 +142,20 @@ export default function App() {
           <OrbitControls 
             ref={controlsRef}
             makeDefault 
-            // Disable panning (right-click drag) when locked onto an agent
+            enableDamping={true}
             enablePan={selectedAgentId === null}
-            // Limit polar angle to avoid looking from below ground (PI/2 is horizon)
-            maxPolarAngle={Math.PI / 2 - 0.1} 
-            minDistance={10} 
-            maxDistance={250} 
-            // Mouse Buttons: Left=Pan, Middle=Zoom, Right=Rotate
-            mouseButtons={{
-                LEFT: MOUSE.PAN,
-                MIDDLE: MOUSE.DOLLY,
-                RIGHT: MOUSE.ROTATE
-            }}
+            dampingFactor={0.1} 
+            maxPolarAngle={Math.PI / 2 - 0.05} 
+            minDistance={2} 
+            maxDistance={300} 
+            target={[0, 0, 0]}
           />
-          {showFPS && <Stats className="!left-auto !right-0 !top-auto !bottom-0" />}
+          {showFPS ? <Stats className="!left-auto !right-0 !top-auto !bottom-0" /> : null}
         </Canvas>
       </div>
 
       <div className="absolute bottom-4 left-4 text-white/30 text-xs pointer-events-none select-none z-10">
-        <p>Left Drag: Pan • Right Drag: Rotate • Scroll: Zoom</p>
+        <p>Left Click: Rotate • Right Click: Pan • Scroll: Zoom • Click Agent: Select</p>
       </div>
     </div>
   );

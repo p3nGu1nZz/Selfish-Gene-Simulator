@@ -108,12 +108,12 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
     // Max energy is 50 + (genome.energy * 100) -> Range 50 to 150
     const maxEnergy = 50 + (genome.energy * 100);
 
-    const baseAgent = {
+    const baseAgent: AgentData = {
         name: agentName,
         genes: genome,
         energy: parentEnergy || maxEnergy, // Start full if new, or inherited
         age: 0,
-        state: 'wandering' as const,
+        state: 'wandering',
         target: null,
         trail: [],
         lastMated: 0,
@@ -126,7 +126,9 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
         ownedBurrowId: null,
         currentBurrowId: null,
         digTimer: 0,
-        actionTimer: 0
+        actionTimer: 0,
+        
+        thoughtBubble: null
     };
 
     const finalAgent = existingData ? { ...baseAgent, ...existingData } : baseAgent;

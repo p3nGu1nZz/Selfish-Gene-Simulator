@@ -1,7 +1,7 @@
 import React, { useRef, useMemo } from 'react';
 import '@react-three/fiber';
 import { useFrame } from '@react-three/fiber';
-import { InstancedMesh, Object3D, Color, BufferGeometry, Vector3 as ThreeVector3, CanvasTexture, Vector3 } from 'three';
+import { InstancedMesh, Object3D, Color, BufferGeometry, CanvasTexture, Vector3 } from 'three';
 import { ViewMode } from '../../core/types';
 import { agents } from '../../core/ecs';
 import { MAX_POPULATION, AGENT_RADIUS_BASE, HOP_DURATION } from '../../core/constants';
@@ -21,8 +21,6 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
     const tempObj = useMemo(() => new Object3D(), []);
     const tempColor = useMemo(() => new Color(), []);
     const tempVec = useMemo(() => new Vector3(), []);
-    
-    // Re-usable Object3D for calculations to avoid GC thrashing in loops
     const dummyBase = useMemo(() => new Object3D(), []);
 
     const shadowTexture = useMemo(() => {
@@ -44,7 +42,6 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
     useFrame((state) => {
         const allAgents = agents.entities;
         const count = allAgents.length;
-
         const targetMesh = meshRef.current;
 
         if (targetMesh && externalGeometry) {
@@ -57,7 +54,6 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 const { position, agent } = entity;
                 if (!agent) continue;
 
-                // VISIBILITY CHECK: If in burrow, strictly hide
                 const isInBurrow = agent.currentBurrowId !== null;
                 const scale = isInBurrow ? 0 : agent.genes.size * 2.5; 
                 
@@ -70,11 +66,10 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                     continue; 
                 }
 
-                // Animation Logic
+                // Animation
                 let hopY = 0;
                 let bodyTilt = 0;
                 let rootYOffset = 0;
-                
                 const isStaticState = agent.state === 'resting' || agent.state === 'sleeping' || agent.state === 'snuggling';
 
                 if (!isStaticState && agent.state !== 'digging' && agent.hopTimer < HOP_DURATION) {
@@ -86,30 +81,20 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                     const dynamicHeight = Math.max(sizeFactor, Math.min(scale * 3.0, velocityFactor + sizeFactor));
 
                     hopY = Math.sin(progress * Math.PI) * dynamicHeight;
-                    
-                    // Tilt into the jump
                     bodyTilt = -Math.sin(progress * Math.PI) * 0.3 * Math.min(1.0, speedMag * 0.1);
-
                 } else if (isStaticState) {
-                    // Gentle breathing
                     hopY = Math.sin(state.clock.elapsedTime * 2 + entity.id) * 0.05 * scale;
                     if (agent.state === 'snuggling') bodyTilt = 0.1;
                 } else if (agent.state === 'digging') {
-                    // Digging Animation
                     const digCycle = (state.clock.elapsedTime * 15) % (Math.PI * 2);
                     hopY = Math.sin(digCycle) * 0.1 * scale;
-                    bodyTilt = Math.PI / 3.5; // Steep head down
-                    rootYOffset = -0.2 * scale; // Sink slightly into ground
+                    bodyTilt = Math.PI / 3.5;
+                    rootYOffset = -0.2 * scale;
                 }
 
-                // Avoid clone: Use tempVec for current position calculation
                 tempVec.copy(position);
                 tempVec.y += hopY + rootYOffset;
-                
-                // Position dummyBase
                 dummyBase.position.copy(tempVec);
-                
-                // Calculate look target without cloning
                 tempObj.position.copy(tempVec).add(agent.heading);
                 dummyBase.lookAt(tempObj.position);
                 dummyBase.rotateX(bodyTilt);
@@ -126,13 +111,10 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
 
                 // Update Shadow
                 if (shadowMeshRef.current) {
-                    // Position shadow just above ground
                     tempObj.position.set(position.x, 0.05, position.z); 
                     tempObj.rotation.set(-Math.PI / 2, 0, 0);
-                    
                     const heightFactor = 1.0 / (1.0 + Math.max(0, hopY) * 0.5);
                     const shadowScale = scale * 1.5 * heightFactor;
-                    
                     tempObj.scale.set(shadowScale, shadowScale, 1);
                     tempObj.updateMatrix();
                     shadowMeshRef.current.setMatrixAt(i, tempObj.matrix);
@@ -177,7 +159,7 @@ export const AgentLayer: React.FC<Props> = ({ viewMode, externalGeometry, showEn
                 castShadow
                 receiveShadow
             >
-                {/* Ensure basic white material so setColorAt tinting works */}
+                {/* Standard material without vertexColors prop ensures InstanceColor is used cleanly */}
                 <meshStandardMaterial roughness={0.4} metalness={0.5} color="white" />
             </instancedMesh>
 

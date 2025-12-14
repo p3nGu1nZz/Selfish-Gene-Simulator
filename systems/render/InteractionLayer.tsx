@@ -15,11 +15,7 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
     const tempObj = useMemo(() => new Object3D(), []);
     const [hoveredId, setHoveredId] = useState<number | null>(null);
     
-    // Store pointer down state to manually detect clicks vs drags
-    const downState = useRef<{ x: number, y: number, ts: number } | null>(null);
-
-    // FIX: Ensure the bounding sphere is large enough so Raycaster doesn't cull the mesh
-    // because the instances are spread far from the origin (0,0,0).
+    // Ensure bounding sphere is large to prevent frustum culling issues with scattered agents
     useEffect(() => {
         if (hitMeshRef.current) {
             hitMeshRef.current.geometry.boundingSphere = new Sphere(new Vector3(0,0,0), Infinity);
@@ -45,16 +41,14 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
                 if (entity.agent.currentBurrowId !== null) {
                     tempObj.scale.set(0, 0, 0);
                 } else {
-                    // Match AgentLayer scale logic: agent.genes.size * 2.5
                     const visualScale = entity.agent.genes.size * 2.5;
                     
-                    // Center hitbox vertically relative to the visual model (approx)
-                    // Visual model hops, so we make the hitbox tall enough to cover the hop
-                    tempObj.position.y += visualScale * 0.75; 
+                    // Position hitbox center higher up to allow clicking above the rabbit's head
+                    tempObj.position.y += visualScale * 1.5; 
                     
-                    // Hitbox dimensions: Wider than visual to make clicking easy
-                    // Height: High enough to catch jumps (approx 2x visual height)
-                    tempObj.scale.set(visualScale * 1.5, visualScale * 2.5, visualScale * 1.5);
+                    // Hitbox dimensions: significantly taller
+                    // Width/Depth 2.0x visual, Height 4.0x visual
+                    tempObj.scale.set(visualScale * 2.0, visualScale * 4.0, visualScale * 2.0);
                 }
                 
                 tempObj.rotation.set(0, 0, 0);
@@ -64,46 +58,36 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
             hitMeshRef.current.instanceMatrix.needsUpdate = true;
         }
 
-        // 2. Update Selection Ring
+        // 2. Update Selection/Hover Ring
         if (ringMeshRef.current) {
             let ringCount = 0;
             const now = state.clock.elapsedTime;
             
-            // Show ring for selected
-            if (selectedAgentId !== null) {
-                const selected = allAgents.find(e => e.id === selectedAgentId);
-                if (selected && selected.agent && selected.agent.currentBurrowId === null) {
-                    tempObj.position.copy(selected.position);
+            // Helper to render ring
+            const addRing = (agentId: number, color: string, pulse: boolean) => {
+                const entity = allAgents.find(e => e.id === agentId);
+                if (entity && entity.agent && entity.agent.currentBurrowId === null) {
+                    tempObj.position.copy(entity.position);
                     tempObj.position.y = 0.05; 
                     
-                    const scale = selected.agent.genes.size * 2.5 * 1.2; // Match visual scale
-                    const pulse = 1.0 + Math.sin(now * 5) * 0.1;
+                    const scale = entity.agent.genes.size * 2.5 * 1.2; 
+                    const scaleFactor = pulse ? (1.0 + Math.sin(now * 5) * 0.1) : 1.0;
                     
-                    tempObj.scale.set(scale * pulse, scale * pulse, 1);
-                    tempObj.rotation.set(-Math.PI / 2, 0, now);
+                    tempObj.scale.set(scale * scaleFactor, scale * scaleFactor, 1);
+                    tempObj.rotation.set(-Math.PI / 2, 0, pulse ? now : 0);
                     tempObj.updateMatrix();
                     
-                    ringMeshRef.current.setMatrixAt(ringCount, tempObj.matrix);
-                    ringMeshRef.current.setColorAt(ringCount, new Color('#3b82f6')); // Blue
+                    ringMeshRef.current!.setMatrixAt(ringCount, tempObj.matrix);
+                    ringMeshRef.current!.setColorAt(ringCount, new Color(color));
                     ringCount++;
                 }
-            }
+            };
 
-            // Show ring for hovered (if different)
+            if (selectedAgentId !== null) {
+                addRing(selectedAgentId, '#3b82f6', true); // Blue selected
+            }
             if (hoveredId !== null && hoveredId !== selectedAgentId) {
-                const hovered = allAgents.find(e => e.id === hoveredId);
-                if (hovered && hovered.agent && hovered.agent.currentBurrowId === null) {
-                    tempObj.position.copy(hovered.position);
-                    tempObj.position.y = 0.05;
-                    const scale = hovered.agent.genes.size * 2.5 * 1.0;
-                    tempObj.scale.set(scale, scale, 1);
-                    tempObj.rotation.set(-Math.PI / 2, 0, 0);
-                    tempObj.updateMatrix();
-                    
-                    ringMeshRef.current.setMatrixAt(ringCount, tempObj.matrix);
-                    ringMeshRef.current.setColorAt(ringCount, new Color('#ffffff')); // White
-                    ringCount++;
-                }
+                addRing(hoveredId, '#ffffff', false); // White hover
             }
             
             ringMeshRef.current.count = ringCount;
@@ -112,35 +96,15 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
         }
     });
 
-    const handlePointerDown = (e: any) => {
-        // Capture interaction start
-        downState.current = { 
-            x: e.nativeEvent.clientX, 
-            y: e.nativeEvent.clientY,
-            ts: Date.now()
-        };
-    };
-
-    const handlePointerUp = (e: any) => {
-        if (!downState.current) return;
-
-        const dx = e.nativeEvent.clientX - downState.current.x;
-        const dy = e.nativeEvent.clientY - downState.current.y;
-        const dist = Math.sqrt(dx*dx + dy*dy);
-        const dt = Date.now() - downState.current.ts;
-
-        downState.current = null;
-
-        // Threshold: Allow up to 40px movement to tolerate shaky hands / micro-pans
-        if (dist < 40 && dt < 600) {
-            e.stopPropagation(); // Prevent falling through to ground
-            
-            const instanceId = e.instanceId;
-            const allAgents = agents.entities;
-            if (instanceId !== undefined && instanceId < allAgents.length) {
-                const agent = allAgents[instanceId];
-                onSelectAgent(agent.id);
-            }
+    // Standard Click Handling
+    const handleClick = (e: any) => {
+        e.stopPropagation();
+        const instanceId = e.instanceId;
+        const allAgents = agents.entities;
+        
+        // Safety check: ensure index is within bounds of current entity list
+        if (instanceId !== undefined && instanceId >= 0 && instanceId < allAgents.length) {
+            onSelectAgent(allAgents[instanceId].id);
         }
     };
 
@@ -149,7 +113,7 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
         document.body.style.cursor = 'pointer';
         const instanceId = e.instanceId;
         const allAgents = agents.entities;
-        if (instanceId !== undefined && instanceId < allAgents.length) {
+        if (instanceId !== undefined && instanceId >= 0 && instanceId < allAgents.length) {
             setHoveredId(allAgents[instanceId].id);
         }
     };
@@ -161,24 +125,22 @@ export const InteractionLayer: React.FC<Props> = ({ selectedAgentId, onSelectAge
 
     return (
         <group>
-            {/* Invisible Hit Boxes */}
+            {/* Invisible Hit Boxes for Raycasting */}
             <instancedMesh 
                 ref={hitMeshRef} 
                 args={[undefined, undefined, 2000]} 
-                onPointerDown={handlePointerDown}
-                onPointerUp={handlePointerUp}
-                onClick={(e) => e.stopPropagation()} // Eat standard clicks so they don't hit ground
+                onClick={handleClick}
                 onPointerOver={handlePointerOver}
                 onPointerOut={handlePointerOut}
                 visible={true} 
                 frustumCulled={false}
             >
                 <boxGeometry args={[1, 1, 1]} />
-                {/* Invisible material for raycasting */}
+                {/* Invisible material: visible=true for raycast, but opacity 0 */}
                 <meshBasicMaterial transparent opacity={0.0} depthWrite={false} color="red" />
             </instancedMesh>
 
-            {/* Selection/Hover Rings */}
+            {/* Selection/Hover Rings Visuals */}
             <instancedMesh ref={ringMeshRef} args={[undefined, undefined, 2]} frustumCulled={false}>
                 <ringGeometry args={[0.8, 1.0, 32]} />
                 <meshBasicMaterial transparent opacity={0.8} depthWrite={false} toneMapped={false} />

@@ -115,7 +115,7 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                      <span className="text-yellow-300">{agent.genes.speed.toFixed(2)}x</span>
                  </div>
                  <div className="flex justify-between text-xs">
-                     <span className="text-gray-300">Energy Cap</span>
+                     <span className="text-gray-300">Energy</span>
                      <span className="text-yellow-500">{(agent.genes.energy * 100).toFixed(0)}%</span>
                  </div>
                  <div className="flex justify-between text-xs">

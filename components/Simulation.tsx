@@ -62,14 +62,26 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
     } else {
         resetIds();
         for (let i = 0; i < params.initialPop; i++) spawnAgent();
-        for (let i = 0; i < 20; i++) spawnFood(undefined, params.foodValue);
+        for (let i = 0; i < 60; i++) spawnFood(undefined, params.foodValue);
     }
     
-    // Auto-select the first agent if exists
+    // Auto-select the agent closest to the center if exists
     // Timeout to allow ECS to update if needed
     setTimeout(() => {
-        if (agents.entities.length > 0) {
-            onSelectAgent(agents.entities[0].id);
+        const allAgents = agents.entities;
+        if (allAgents.length > 0) {
+            // Find closest to center (0,0,0)
+            let closestId = allAgents[0].id;
+            let closestDistSq = allAgents[0].position.lengthSq();
+
+            for (let i = 1; i < allAgents.length; i++) {
+                const distSq = allAgents[i].position.lengthSq();
+                if (distSq < closestDistSq) {
+                    closestDistSq = distSq;
+                    closestId = allAgents[i].id;
+                }
+            }
+            onSelectAgent(closestId);
         } else {
             onSelectAgent(null);
         }
@@ -120,6 +132,10 @@ export const Simulation: React.FC<SimulationProps> = (props) => {
                 if (!geo) {
                     // Clone geometry so we can modify it safely
                     geo = m.geometry.clone();
+                    // Strip any vertex colors to avoid conflict with instance colors
+                    if (geo.attributes.color) {
+                        geo.deleteAttribute('color');
+                    }
                 }
             }
         });

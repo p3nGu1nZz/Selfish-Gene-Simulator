@@ -15,7 +15,8 @@
     "@react-three/fiber": "8.15.12",
     "@react-three/drei": "9.96.1",
     "three": "0.160.0",
-    "miniplex": "2.0.0"
+    "miniplex": "2.0.0",
+    "fflate": "0.8.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

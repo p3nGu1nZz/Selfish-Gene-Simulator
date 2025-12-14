@@ -58,7 +58,7 @@ const WaterShaderMaterial = {
             vec3 pos = position;
             
             float noiseFreq = 0.02;
-            float noiseAmp = 2.0;
+            float noiseAmp = 1.5; // Reduced from 2.0 to be gentler
             
             float elevation = snoise(vec2(pos.x * noiseFreq + uTime * 0.2, pos.y * noiseFreq + uTime * 0.1));
             elevation += snoise(vec2(pos.x * noiseFreq * 2.0 - uTime * 0.1, pos.y * noiseFreq * 2.0 + uTime * 0.2)) * 0.5;
@@ -188,7 +188,8 @@ export const EnvironmentLayer: React.FC<Props> = ({ onSelectAgent, showGrid }) =
             </mesh>
 
             {/* The Water: Animated Shader Plane surrounding the island */}
-            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.0, 0]}>
+            {/* Lowered to -1.8 to ensure waves lap at y=0 but don't overflow constantly */}
+            <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -1.8, 0]}>
                 <planeGeometry args={[4000, 4000, 128, 128]} />
                 <shaderMaterial 
                     ref={waterRef}
