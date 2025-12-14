@@ -1,6 +1,6 @@
 import React, { useMemo, useEffect } from 'react';
 import { useGLTF } from '@react-three/drei';
-import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, DoubleSide, TextureLoader, SRGBColorSpace } from 'three';
+import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, DoubleSide } from 'three';
 import { SimulationParams, ViewMode, AgentData } from '../core/types';
 import { clearWorld, agents } from '../core/ecs';
 import { spawnAgent, spawnFood, resetIds } from '../entities';
@@ -112,10 +112,6 @@ export const Simulation: React.FC<SimulationProps> = (props) => {
     // Load Carrot
     const { scene: carrotScene } = useGLTF(CARROT_MODEL_PATH);
     
-    // We remove explicit useTexture here because it causes the app to crash 
-    // if the assets are missing or paths are incorrect on the server.
-    // Instead, we load them safely in useEffect below.
-
     const rabbitGeo = useMemo(() => {
         let geo: BufferGeometry | undefined;
         rabbitScene.traverse((child) => {
@@ -146,12 +142,18 @@ export const Simulation: React.FC<SimulationProps> = (props) => {
                 // Heuristic: Check material or mesh name for 'leaf' to assign leaf texture properties
                 const lowerName = (mat.name + m.name).toLowerCase();
                 
+                // Remove texture to rely on color
+                mat.map = null;
+
                 if (lowerName.includes('leaf') || lowerName.includes('leaves')) {
+                    mat.color.setHex(0x4caf50); // Vibrant Green
                     mat.transparent = true; 
                     mat.alphaTest = 0.5; 
                     mat.side = DoubleSide; 
                     mat.depthWrite = true;
-                } 
+                } else {
+                    mat.color.setHex(0xff7f00); // Bright Orange
+                }
                 
                 // Ensure material knows we might update maps later
                 mat.needsUpdate = true;
@@ -171,46 +173,6 @@ export const Simulation: React.FC<SimulationProps> = (props) => {
         });
         return parts;
     }, [carrotScene]);
-
-    // Safe Texture Loading
-    useEffect(() => {
-        const loader = new TextureLoader();
-        
-        const applyTexture = (path: string, isLeaf: boolean) => {
-            loader.load(
-                path,
-                (texture) => {
-                    texture.flipY = false; // GLTF convention
-                    texture.colorSpace = SRGBColorSpace;
-                    
-                    carrotModels.forEach(part => {
-                        const mat = part.material as MeshStandardMaterial;
-                        const lowerName = (mat.name + part.meshName).toLowerCase();
-                        const isLeafPart = lowerName.includes('leaf') || lowerName.includes('leaves');
-
-                        if (isLeaf && isLeafPart) {
-                            mat.map = texture;
-                            mat.needsUpdate = true;
-                        } else if (!isLeaf && !isLeafPart) {
-                            mat.map = texture;
-                            mat.needsUpdate = true;
-                        }
-                    });
-                },
-                undefined,
-                (err) => {
-                    console.warn(`[Simulation] Could not load texture at ${path}. Using model fallback.`, err);
-                }
-            );
-        };
-
-        // Try to load the textures requested
-        // Using relative paths 'assets/...' which works best with most bundlers/servers
-        // compared to '/assets/...' which requires root server config.
-        applyTexture('assets/carrot/textures/Carrot_Base_diffuse.png', false);
-        applyTexture('assets/carrot/textures/Carrot_Leaves_diffuse.png', true);
-
-    }, [carrotModels]);
 
     return (
         <SimulationRoot 

@@ -20,6 +20,8 @@ export const createRandomGenome = (): Genome => ({
   size: rand(0.8, 1.2),
   mutationRate: rand(0.01, 0.1),
   hue: Math.random(), // Random base hue [0, 1]
+  energy: Math.random(), // 0.0 - 1.0 (Low to High capacity)
+  fertility: Math.random() // 0.0 - 1.0 (Low to High reproductive success)
 });
 
 export const generateName = (p1?: AgentData, p2?: AgentData): { first: string, last: string } => {
@@ -49,6 +51,8 @@ export const mutateGenome = (parent: Genome, magnitude: number): Genome => {
     size: clamp(mutate(parent.size), 0.5, 2.0),
     mutationRate: clamp(mutate(parent.mutationRate), 0.01, 0.2),
     hue: clamp(mutate(parent.hue), 0, 1),
+    energy: clamp(mutate(parent.energy), 0, 1),
+    fertility: clamp(mutate(parent.fertility), 0, 1),
   };
 };
 
@@ -60,6 +64,8 @@ export const mixGenomes = (g1: Genome, g2: Genome): Genome => {
     const baseSpeed = (g1.speed + g2.speed) / 2;
     const baseSelfish = (g1.selfishness + g2.selfishness) / 2;
     const baseMut = (g1.mutationRate + g2.mutationRate) / 2;
+    const baseEnergy = (g1.energy + g2.energy) / 2;
+    const baseFertility = (g1.fertility + g2.fertility) / 2;
 
     // HSV Color Inheritance (Hue averaging with shortest path)
     let d = g2.hue - g1.hue;
@@ -76,12 +82,17 @@ export const mixGenomes = (g1: Genome, g2: Genome): Genome => {
     if (newHue < 0) newHue += 1;
     if (newHue > 1) newHue -= 1;
 
+    // Mutation Factor from Parents
+    const mut = Math.max(g1.mutationRate, g2.mutationRate);
+
     return {
-        size: clamp(baseSize + (Math.random() - 0.5) * 0.1, 0.5, 2.0),
-        speed: clamp(baseSpeed + (Math.random() - 0.5) * 0.1, 0.5, 3.0),
-        selfishness: clamp(baseSelfish + (Math.random() - 0.5) * 0.1, 0, 1),
+        size: clamp(baseSize + (Math.random() - 0.5) * mut, 0.5, 2.0),
+        speed: clamp(baseSpeed + (Math.random() - 0.5) * mut, 0.5, 3.0),
+        selfishness: clamp(baseSelfish + (Math.random() - 0.5) * mut, 0, 1),
         mutationRate: clamp(baseMut + (Math.random() - 0.5) * 0.01, 0.01, 0.2),
-        hue: newHue
+        hue: newHue,
+        energy: clamp(baseEnergy + (Math.random() - 0.5) * mut, 0, 1),
+        fertility: clamp(baseFertility + (Math.random() - 0.5) * mut, 0, 1)
     };
 };
 
@@ -93,11 +104,14 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
     const genome = genes || createRandomGenome();
     const agentName = name || generateName();
     
-    // If restoring, use existing data spread
+    // Calculate initial max energy based on genome for starting energy
+    // Max energy is 50 + (genome.energy * 100) -> Range 50 to 150
+    const maxEnergy = 50 + (genome.energy * 100);
+
     const baseAgent = {
         name: agentName,
         genes: genome,
-        energy: parentEnergy || 100,
+        energy: parentEnergy || maxEnergy, // Start full if new, or inherited
         age: 0,
         state: 'wandering' as const,
         target: null,

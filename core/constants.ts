@@ -21,6 +21,11 @@ export const FEAR_DECAY = 5;
 
 export const MATURITY_DAYS = 0.8; // Minimum age in game-days to breed
 
+// Reproduction Stats (Based on Rabbit Biology scaled for game)
+export const MIN_LITTER_SIZE = 1;
+export const MAX_LITTER_SIZE = 10;
+export const BASE_MATING_COOLDOWN = 20; // Seconds
+
 // Particle Tuning
 export const HEART_SIZE_MULT = 1.8;
 export const HEART_LIFETIME = 0.9;

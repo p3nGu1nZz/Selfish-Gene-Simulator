@@ -2,7 +2,7 @@ import { Vector3, Color } from 'three';
 import React from 'react';
 import '@react-three/fiber';
 
-export type ViewMode = 'selfishness' | 'speed' | 'size' | 'mutation' | 'affinity';
+export type ViewMode = 'selfishness' | 'speed' | 'size' | 'mutation' | 'affinity' | 'energy' | 'fertility';
 
 export interface Genome {
   selfishness: number;
@@ -10,6 +10,8 @@ export interface Genome {
   size: number;
   mutationRate: number;
   hue: number;
+  energy: number;    // 0.0 - 1.0: Affects Max Energy and Drain Rate
+  fertility: number; // 0.0 - 1.0: Affects Litter Size and Cooldown
 }
 
 // Component Data Interfaces

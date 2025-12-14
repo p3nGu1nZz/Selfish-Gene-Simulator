@@ -9,6 +9,14 @@ export const BurrowLayer: React.FC = () => {
     const moundMeshRef = useRef<InstancedMesh>(null);
     const tempObj = useMemo(() => new Object3D(), []);
 
+    // Easing function for pop effect (Back Out)
+    const getScale = (p: number) => {
+        if (p >= 1) return 1;
+        const s = 1.70158;
+        const t = p - 1;
+        return t * t * ((s + 1) * t + s) + 1;
+    };
+
     useFrame(() => {
         const allBurrows = burrows.entities;
         
@@ -23,7 +31,7 @@ export const BurrowLayer: React.FC = () => {
                 tempObj.position.y = 0.1; 
                 
                 const progress = ent.burrow.digProgress;
-                const scaleMult = progress < 1 ? Math.sin(progress * Math.PI / 2) : 1; 
+                const scaleMult = getScale(progress);
                 const scale = ent.burrow.radius * 1.3 * scaleMult; 
                 
                 tempObj.scale.set(scale, scale * 0.3, scale); 
@@ -46,8 +54,8 @@ export const BurrowLayer: React.FC = () => {
                 tempObj.rotation.set(-Math.PI/2, 0, 0); // Flat on ground
                 
                 const progress = ent.burrow.digProgress;
+                const scaleMult = getScale(progress);
                 // Mound grows slightly wider than the hole
-                const scaleMult = progress < 1 ? Math.sin(progress * Math.PI / 2) : 1; 
                 const scale = ent.burrow.radius * 2.0 * scaleMult;
 
                 tempObj.scale.set(scale, scale, 0.4); // Z is height in Torus coords

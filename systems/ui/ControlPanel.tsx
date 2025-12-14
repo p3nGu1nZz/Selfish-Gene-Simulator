@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { SimulationParams, ViewMode, AgentData } from '../../core/types';
-import { REAL_SECONDS_PER_GAME_DAY, MATURITY_DAYS } from '../../core/constants';
+import { REAL_SECONDS_PER_GAME_DAY, MATURITY_DAYS, MAX_LITTER_SIZE, MIN_LITTER_SIZE } from '../../core/constants';
 import { inputManager, Action } from '../../core/InputManager';
 import { saveSimulation } from '../../core/SaveLoad';
 import { 
@@ -57,6 +57,8 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
 
     const ageInDays = agent.age / REAL_SECONDS_PER_GAME_DAY;
     const isMature = ageInDays >= MATURITY_DAYS;
+    const maxEnergy = 50 + (agent.genes.energy * 100);
+    const potentialLitter = Math.round(MIN_LITTER_SIZE + (MAX_LITTER_SIZE - MIN_LITTER_SIZE) * agent.genes.fertility);
     
     return (
         <div className="absolute top-20 left-4 z-10 w-64 bg-black/60 backdrop-blur-md p-4 rounded-lg border border-white/10 space-y-3 shadow-xl">
@@ -77,14 +79,16 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                  <div className="text-gray-400">Breeding</div>
                  <div className="text-right font-mono">
                      {isMature 
-                        ? <span className="text-green-400">Mature</span> 
+                        ? <span className="text-green-400">Mature (~{potentialLitter} kits)</span> 
                         : <span className="text-red-400">Too Young</span>
                      }
                  </div>
 
                  <div className="text-gray-400">Energy</div>
                  <div className="text-right text-white font-mono flex justify-end items-center gap-1">
-                     <span className={`${agent.energy < 30 ? 'text-red-400' : 'text-green-400'}`}>{agent.energy.toFixed(0)}%</span>
+                     <span className={`${agent.energy < (maxEnergy*0.3) ? 'text-red-400' : 'text-green-400'}`}>
+                        {agent.energy.toFixed(0)} / {maxEnergy.toFixed(0)}
+                     </span>
                  </div>
              </div>
 
@@ -103,6 +107,14 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                  <div className="flex justify-between text-xs">
                      <span className="text-gray-300">Speed</span>
                      <span className="text-yellow-300">{agent.genes.speed.toFixed(2)}x</span>
+                 </div>
+                 <div className="flex justify-between text-xs">
+                     <span className="text-gray-300">Energy Cap</span>
+                     <span className="text-yellow-500">{(agent.genes.energy * 100).toFixed(0)}%</span>
+                 </div>
+                 <div className="flex justify-between text-xs">
+                     <span className="text-gray-300">Fertility</span>
+                     <span className="text-pink-400">{(agent.genes.fertility * 100).toFixed(0)}%</span>
                  </div>
              </div>
         </div>
@@ -143,7 +155,7 @@ const GlobalHUD: React.FC<{ population: number, selfishness: number }> = ({ popu
     );
 };
 
-type TabId = 'gameplay' | 'video' | 'audio' | 'controls' | 'accessibility';
+type TabId = 'gameplay' | 'video' | 'controls';
 
 export const ControlPanel: React.FC<ControlPanelProps> = ({
   params,
@@ -235,16 +247,30 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
     <GlobalHUD population={populationCount} selfishness={avgSelfishness} />
     <AgentHUD agent={selectedAgent} />
 
-    {/* Gear Icon to Open */}
-    {!isOpen && (
-        <button
-            onClick={() => setIsOpen(true)}
-            className="absolute top-4 left-4 z-20 p-2.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-white hover:bg-white/10 hover:text-blue-400 transition-colors shadow-xl"
-            title="Open Settings"
-        >
-            <Settings size={20} />
-        </button>
-    )}
+    {/* Top Left Controls Container */}
+    <div className="absolute top-4 left-4 z-20 flex items-center gap-2">
+        {/* Settings Button */}
+        {!isOpen && (
+            <button
+                onClick={() => setIsOpen(true)}
+                className="p-2.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-white hover:bg-white/10 hover:text-blue-400 transition-colors shadow-xl"
+                title="Open Settings"
+            >
+                <Settings size={20} />
+            </button>
+        )}
+
+        {/* Play/Pause Button */}
+        {!isOpen && (
+            <button
+                onClick={() => setPaused(!paused)}
+                className="p-2.5 bg-black/60 backdrop-blur-md border border-white/10 rounded-lg text-white hover:bg-white/10 hover:text-green-400 transition-colors shadow-xl"
+                title={paused ? "Resume Simulation" : "Pause Simulation"}
+            >
+                {paused ? <Play size={20} className="fill-current" /> : <Pause size={20} className="fill-current" />}
+            </button>
+        )}
+    </div>
 
     {/* Centered Modal */}
     {isOpen && (
@@ -366,6 +392,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     { id: 'speed', label: 'Speed', color: 'bg-blue-500' },
                                     { id: 'size', label: 'Size', color: 'bg-purple-500' },
                                     { id: 'mutation', label: 'Mutation', color: 'bg-pink-500' },
+                                    { id: 'energy', label: 'Energy Cap', color: 'bg-yellow-500' },
+                                    { id: 'fertility', label: 'Fertility', color: 'bg-pink-400' },
                                     { id: 'affinity', label: 'Family (Hue)', color: 'bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500' },
                                 ].map((mode) => (
                                     <button

@@ -35,7 +35,8 @@ export const CameraFollower = ({ selectedAgentId, controlsRef }: { selectedAgent
             controls.target.copy(currentPos);
             
             // 2. Position camera nicely behind/above relative to agent's heading
-            const offset = new Vector3(0, 5, 8); // Default offset
+            // INCREASED DISTANCE: Higher and further back
+            const offset = new Vector3(0, 12, 18); 
             camera.position.copy(currentPos).add(offset);
             
             prevId.current = selectedAgentId;

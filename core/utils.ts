@@ -19,6 +19,18 @@ export const getAgentColorRGB = (agentData: any, viewMode: ViewMode): {r: number
     } else if (viewMode === 'mutation') {
         const s = agentData.genes.mutationRate * 5; 
         r = 0.5 + s * 0.5; g = 0.5; b = 0.5 + s * 0.5;
+    } else if (viewMode === 'energy') {
+        // Yellow scale
+        const s = agentData.genes.energy;
+        r = s;
+        g = s * 0.9;
+        b = 0.2; 
+    } else if (viewMode === 'fertility') {
+        // Pink/Purple scale
+        const s = agentData.genes.fertility;
+        r = 0.9;
+        g = 0.2 + (s * 0.4);
+        b = 0.6 + (s * 0.4);
     } else if (viewMode === 'affinity') {
         // Inheritance Mode: Use the inherited Hue gene
         // Saturation and Lightness are fixed/high to ensure visibility
