@@ -4,7 +4,8 @@ import { Entity, SimulationParams } from '../core/types';
 import { 
     WORLD_SIZE, MAX_POPULATION, AGENT_RADIUS_BASE, MAX_SPEED_BASE, SENSOR_RADIUS, 
     MAX_TRAIL_POINTS, MIN_BURROW_SPACING,
-    HOP_DURATION, ENERGY_REGEN_RATE, DIG_COST, DIG_THRESHOLD, FEAR_DECAY
+    HOP_DURATION, ENERGY_REGEN_RATE, DIG_COST, DIG_THRESHOLD, FEAR_DECAY,
+    MATURITY_DAYS, REAL_SECONDS_PER_GAME_DAY
 } from '../core/constants';
 import { spawnParticle } from '../entities/Particle';
 import { spawnAgent, mixGenomes, generateName } from '../entities/Agent';
@@ -50,20 +51,52 @@ const burrowHash = new SpatialHash(MIN_BURROW_SPACING);
 
 // -- Audio Utils --
 const audioCtx = typeof window !== 'undefined' ? new (window.AudioContext || (window as any).webkitAudioContext)() : null;
+let noiseBuffer: AudioBuffer | null = null;
+
+const createNoiseBuffer = () => {
+    if (!audioCtx) return null;
+    const bufferSize = audioCtx.sampleRate * 2.0; // 2 seconds of noise buffer
+    const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+    }
+    return buffer;
+};
+
 const playDigSound = () => {
     if (!audioCtx || audioCtx.state === 'suspended') audioCtx?.resume().catch(() => {});
     if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
+    
+    if (!noiseBuffer) noiseBuffer = createNoiseBuffer();
+    if (!noiseBuffer) return;
+
+    // Create source from noise buffer
+    const source = audioCtx.createBufferSource();
+    source.buffer = noiseBuffer;
+    // Vary playback rate to change pitch/texture slightly
+    source.playbackRate.value = 0.5 + Math.random() * 0.5;
+
+    // Filter to make it sound like dirt/low frequency
+    const filter = audioCtx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 300 + Math.random() * 200;
+
+    // Envelope for short crunch
     const gain = audioCtx.createGain();
-    osc.connect(gain);
+    const now = audioCtx.currentTime;
+    const duration = 0.08 + Math.random() * 0.05;
+    
+    gain.gain.setValueAtTime(0.15, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    // Graph: Source -> Filter -> Gain -> Destination
+    source.connect(filter);
+    filter.connect(gain);
     gain.connect(audioCtx.destination);
-    osc.type = 'sawtooth';
-    osc.frequency.setValueAtTime(80 + Math.random() * 40, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(10, audioCtx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.08);
-    osc.start();
-    osc.stop(audioCtx.currentTime + 0.1);
+    
+    source.start(now);
+    source.stop(now + duration + 0.1);
 };
 
 // -- Behavior Subsystems --
@@ -83,9 +116,12 @@ const handleDigging = (entity: Entity, dt: number, nearestBurrowDist: number, ne
         agent.energy -= DIG_COST * dt;
         velocity!.set(0,0,0);
         
+        // Spawn dirt particles more frequently when actively digging
+        // And play sound
         if (Math.random() < dt * 25) { 
-            spawnParticle(position, 'dirt');
-            if (Math.random() < 0.2) playDigSound();
+            spawnParticle(position, 'dirt', undefined, agent.genes.size);
+            // Chance to play sound synchronized with particle bursts
+            if (Math.random() < 0.25) playDigSound();
         }
 
         if (agent.digTimer > DIG_THRESHOLD) {
@@ -94,8 +130,9 @@ const handleDigging = (entity: Entity, dt: number, nearestBurrowDist: number, ne
             agent.currentBurrowId = b.id; 
             agent.state = 'sleeping';
             agent.digTimer = 0;
-            spawnParticle(position, 'dirt'); 
-            playDigSound();
+            // Burst on completion
+            for(let k=0; k<5; k++) spawnParticle(position, 'dirt'); 
+            playDigSound(); // Final big dig sound
         } else if (agent.energy < 5) {
             agent.state = 'sleeping';
         }
@@ -117,7 +154,7 @@ const handleInteraction = (entity: Entity, dt: number, nearestAgent: Entity | nu
          const normal = tempVec.subVectors(position, other.position).normalize();
          
          // Snuggling
-         // We cast to string[] to allow includes to work with the wider AgentData state type vs the inferred array type
+         // Cast to string array for includes check
          if (isFriend && 
             (['wandering', 'resting', 'snuggling'] as string[]).includes(agent.state) && 
             (['wandering', 'resting', 'snuggling'] as string[]).includes(otherAgent.state) &&
@@ -141,10 +178,12 @@ const handleInteraction = (entity: Entity, dt: number, nearestAgent: Entity | nu
          // Mating
          if (isFriend && id < other.id) {
              const matingCooldown = 20; 
-             const MATURITY_AGE = 100;
+             // Maturity check in seconds
+             const maturityAgeSeconds = MATURITY_DAYS * REAL_SECONDS_PER_GAME_DAY;
+             
              const canMate = (a: typeof agent) => 
                 a.energy > params.reproductionThreshold && 
-                a.age > MATURITY_AGE && 
+                a.age > maturityAgeSeconds && 
                 (a.age - a.lastMated) > matingCooldown;
 
              if (canMate(agent) && canMate(otherAgent) && agents.entities.length < MAX_POPULATION) {
@@ -155,6 +194,8 @@ const handleInteraction = (entity: Entity, dt: number, nearestAgent: Entity | nu
                  
                  const offspringGenome = mixGenomes(agent.genes, otherAgent.genes);
                  const midPoint = position.clone().lerp(other.position, 0.5);
+                 
+                 // Burst of hearts from mid-point
                  spawnParticle(midPoint, 'heart', undefined, agent.genes.size);
 
                  const litterSize = Math.floor((Math.random() * 4) + 3);
@@ -213,7 +254,7 @@ const handleMovement = (entity: Entity, dt: number, nearestFood: Entity | null, 
                 if (dist < 1.5) {
                     agent.currentBurrowId = myBurrow.id;
                     agent.state = 'sleeping';
-                    position.y = -5;
+                    position.y = -5; // Move visual underground
                 } else {
                     steering.add(tempVec2.subVectors(myBurrow.position, position).normalize().multiplyScalar(3.0));
                     agent.state = 'wandering';
@@ -235,7 +276,10 @@ const handleMovement = (entity: Entity, dt: number, nearestFood: Entity | null, 
         // Wandering
         else {
             agent.state = 'wandering';
-            steering.add(new Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).normalize().multiplyScalar(1.0));
+            // Strong forward bias to create distinct hopping directions rather than jittery in-place rotation
+            const forwardBias = agent.heading.clone().multiplyScalar(4.0);
+            const noise = new Vector3((Math.random()-0.5), 0, (Math.random()-0.5)).multiplyScalar(1.5);
+            steering.add(forwardBias.add(noise));
         }
 
         // Boundary Avoidance
@@ -245,7 +289,8 @@ const handleMovement = (entity: Entity, dt: number, nearestFood: Entity | null, 
         if (position.z < -WORLD_SIZE/2 + 2) steering.z += 10;
 
         const targetDir = agent.heading.clone().multiplyScalar(0.5).add(steering).normalize();
-        agent.heading.lerp(targetDir, 0.2).normalize();
+        // Slower turn rate for smoother arcs
+        agent.heading.lerp(targetDir, 0.1).normalize();
 
         let speedMult = 25.0; 
         if (agent.state === 'fleeing') speedMult = 45.0; 
@@ -306,11 +351,13 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
         if (agent.currentBurrowId !== null) {
             agent.state = 'sleeping';
             velocity.set(0,0,0); 
-            if (Math.random() < dt * 0.8) spawnParticle(position.clone().add(new Vector3(0,1.5,0)), 'zzz', undefined, agent.genes.size);
+            // Zzz particles
+            if (Math.random() < dt * 0.8) spawnParticle(position.clone(), 'zzz', undefined, agent.genes.size);
+            
             if (agent.energy >= 95 && !isNight) {
                  agent.currentBurrowId = null;
                  agent.state = 'wandering';
-                 position.y = 0;
+                 position.y = 0; // Restore to surface
                  spawnParticle(position, 'dirt', undefined, 1.0);
             }
             continue; 
@@ -323,11 +370,12 @@ export const AgentSystem = (dt: number, params: SimulationParams, getAgentColor:
                  if (burrow && position.distanceTo(burrow.position) < 2) {
                      agent.currentBurrowId = burrow.id;
                      agent.state = 'sleeping';
+                     position.y = -5; // Move underground immediately
                  }
             } else agent.state = 'sleeping';
         } 
         if (agent.state === 'sleeping' && isNight) {
-             if (Math.random() < dt * 0.8) spawnParticle(position.clone().add(new Vector3(0, 0.5, 0)), 'zzz', undefined, agent.genes.size);
+             if (Math.random() < dt * 0.8) spawnParticle(position.clone(), 'zzz', undefined, agent.genes.size);
              velocity.set(0,0,0);
              continue;
         } else if (agent.state === 'sleeping' && !isNight) agent.state = 'wandering';

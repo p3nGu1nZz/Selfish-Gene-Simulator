@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SimulationParams, ViewMode, AgentData } from '../../core/types';
+import { REAL_SECONDS_PER_GAME_DAY, MATURITY_DAYS } from '../../core/constants';
+import { inputManager, Action } from '../../core/InputManager';
+import { saveSimulation } from '../../core/SaveLoad';
 import { 
     RefreshCcw, Play, Pause, Settings, X, 
     Gamepad2, Video, Volume2, Accessibility, Sliders,
-    Activity, Dna, Sun, Moon, CloudFog, Battery, Footprints, Grid, Search
+    Activity, Dna, Sun, Moon, CloudFog, Battery, Footprints, Grid, Search, Keyboard, Save
 } from 'lucide-react';
 
 interface ControlPanelProps {
@@ -28,6 +31,8 @@ interface ControlPanelProps {
   setShowGrid: (show: boolean) => void;
   resetCamera: () => void;
   selectedAgent: AgentData | null;
+  showFPS: boolean;
+  setShowFPS: (show: boolean) => void;
 }
 
 // Clock Component
@@ -50,6 +55,9 @@ const TimeDisplay: React.FC<{ time: number }> = ({ time }) => {
 const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
     if (!agent) return null;
 
+    const ageInDays = agent.age / REAL_SECONDS_PER_GAME_DAY;
+    const isMature = ageInDays >= MATURITY_DAYS;
+    
     return (
         <div className="absolute top-20 left-4 z-10 w-64 bg-black/60 backdrop-blur-md p-4 rounded-lg border border-white/10 space-y-3 shadow-xl">
              <div className="flex items-center gap-2 border-b border-white/10 pb-2">
@@ -62,7 +70,17 @@ const AgentHUD: React.FC<{ agent: AgentData | null }> = ({ agent }) => {
                  <div className="text-right text-white font-mono uppercase">{agent.state.replace('_', ' ')}</div>
                  
                  <div className="text-gray-400">Age</div>
-                 <div className="text-right text-white font-mono">{agent.age.toFixed(0)} ticks</div>
+                 <div className="text-right font-mono">
+                     <span className="text-white">{Math.max(1, Math.floor(ageInDays))} day{Math.floor(ageInDays) !== 1 ? 's' : ''}</span>
+                 </div>
+
+                 <div className="text-gray-400">Breeding</div>
+                 <div className="text-right font-mono">
+                     {isMature 
+                        ? <span className="text-green-400">Mature</span> 
+                        : <span className="text-red-400">Too Young</span>
+                     }
+                 </div>
 
                  <div className="text-gray-400">Energy</div>
                  <div className="text-right text-white font-mono flex justify-end items-center gap-1">
@@ -148,10 +166,15 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
   showGrid,
   setShowGrid,
   resetCamera,
-  selectedAgent
+  selectedAgent,
+  showFPS,
+  setShowFPS
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<TabId>('gameplay');
+  const [rebinding, setRebinding] = useState<Action | null>(null);
+  // Force update to refresh key binding list
+  const [, setTick] = useState(0);
 
   const handleChange = (key: keyof SimulationParams, value: number) => {
     setParams((prev) => ({ ...prev, [key]: value }));
@@ -164,12 +187,46 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
       }
   };
 
+  const handleSave = () => {
+      saveSimulation(params);
+  };
+
+  // Sync Pause state with Menu Open state
+  useEffect(() => {
+      if (isOpen) setPaused(true);
+      else setPaused(false);
+  }, [isOpen, setPaused]);
+
+  // Handle ESC key to toggle menu
+  useEffect(() => {
+      const handleKeyDown = (e: KeyboardEvent) => {
+          if (e.key === 'Escape') {
+              setIsOpen(prev => !prev);
+          }
+      };
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  useEffect(() => {
+      if (!rebinding) return;
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+          e.preventDefault();
+          e.stopPropagation();
+          inputManager.rebind(rebinding, e.key);
+          setRebinding(null);
+          setTick(t => t + 1);
+      };
+
+      window.addEventListener('keydown', handleKeyDown);
+      return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [rebinding]);
+
   const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
     { id: 'gameplay', label: 'Gameplay', icon: <Sliders size={16} /> },
     { id: 'video', label: 'Video', icon: <Video size={16} /> },
-    { id: 'audio', label: 'Audio', icon: <Volume2 size={16} /> },
-    { id: 'controls', label: 'Controls', icon: <Gamepad2 size={16} /> },
-    { id: 'accessibility', label: 'Accessibility', icon: <Accessibility size={16} /> },
+    { id: 'controls', label: 'Inputs', icon: <Gamepad2 size={16} /> },
   ];
 
   return (
@@ -201,11 +258,11 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     </h1>
                     <div className="flex items-center gap-2">
                          <button
-                            onClick={() => setPaused(!paused)}
-                            className="p-2 rounded-lg bg-white/10 hover:bg-white/20 transition text-white"
-                            title={paused ? "Resume" : "Pause"}
+                            onClick={handleSave}
+                            className="p-2 rounded-lg bg-white/10 hover:bg-blue-500/50 transition text-white"
+                            title="Save Game"
                         >
-                            {paused ? <Play size={18} /> : <Pause size={18} />}
+                            <Save size={18} />
                         </button>
                         <button
                             onClick={resetSimulation}
@@ -309,6 +366,7 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     { id: 'speed', label: 'Speed', color: 'bg-blue-500' },
                                     { id: 'size', label: 'Size', color: 'bg-purple-500' },
                                     { id: 'mutation', label: 'Mutation', color: 'bg-pink-500' },
+                                    { id: 'affinity', label: 'Family (Hue)', color: 'bg-gradient-to-r from-pink-500 via-purple-500 to-indigo-500' },
                                 ].map((mode) => (
                                     <button
                                     key={mode.id}
@@ -331,6 +389,18 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                             <div className="h-px bg-white/10 my-4" />
                             
                             <div className="grid grid-cols-1 gap-4">
+                                <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
+                                    <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
+                                        <Activity size={16} /> Show FPS
+                                    </label>
+                                    <button 
+                                        onClick={() => setShowFPS(!showFPS)}
+                                        className={`w-12 h-6 rounded-full transition-colors relative ${showFPS ? 'bg-blue-500' : 'bg-gray-700'}`}
+                                    >
+                                        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform ${showFPS ? 'translate-x-6' : 'translate-x-0'}`} />
+                                    </button>
+                                </div>
+
                                 <div className="flex items-center justify-between p-3 bg-white/5 rounded-lg">
                                     <label className="text-sm font-medium text-gray-300 flex items-center gap-2">
                                         <Battery size={16} /> Show Energy Bars
@@ -389,8 +459,8 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                                     <input
                                         type="range"
                                         min="30"
-                                        max="600"
-                                        step="10"
+                                        max="5000"
+                                        step="100"
                                         value={fogDistance}
                                         onKeyDown={preventArrowKeys}
                                         onChange={(e) => setFogDistance(parseFloat(e.target.value))}
@@ -402,33 +472,51 @@ export const ControlPanel: React.FC<ControlPanelProps> = ({
                     )}
 
                     {activeTab === 'controls' && (
-                        <div className="space-y-4">
+                        <div className="space-y-6">
                             <div className="p-4 bg-white/5 rounded-lg">
-                                <h3 className="font-bold text-white mb-2">Camera Controls</h3>
+                                <h3 className="font-bold text-white mb-4 flex items-center gap-2">
+                                    <Keyboard size={18} /> Key Bindings
+                                </h3>
+                                <div className="space-y-2">
+                                    {Object.entries(inputManager.bindings).map(([action, key]) => (
+                                        <div key={action} className="flex items-center justify-between p-2 hover:bg-white/5 rounded transition-colors">
+                                            <span className="text-sm text-gray-300 capitalize">{action.replace('_', ' ').toLowerCase()}</span>
+                                            <button 
+                                                onClick={() => setRebinding(action as Action)}
+                                                className={`px-3 py-1.5 rounded font-mono text-xs border transition-all min-w-[80px] text-center
+                                                    ${rebinding === action 
+                                                        ? 'bg-blue-500 text-white border-blue-400 animate-pulse' 
+                                                        : 'bg-black/50 text-gray-400 border-white/20 hover:border-white/50 hover:text-white'
+                                                    }`}
+                                            >
+                                                {rebinding === action ? 'Press Key...' : key === ' ' ? 'Space' : key}
+                                            </button>
+                                        </div>
+                                    ))}
+                                </div>
+                                <button 
+                                    onClick={() => { inputManager.resetToDefaults(); setTick(t => t + 1); }}
+                                    className="mt-4 text-xs text-blue-400 hover:text-blue-300 underline"
+                                >
+                                    Reset to Defaults
+                                </button>
+                            </div>
+
+                            <div className="p-4 bg-white/5 rounded-lg">
+                                <h3 className="font-bold text-white mb-2">Instructions</h3>
                                 <ul className="space-y-2 text-sm text-gray-300">
-                                    <li className="flex justify-between"><span>Rotate</span> <span className="font-mono bg-white/10 px-2 rounded">Left Click Drag</span></li>
-                                    <li className="flex justify-between"><span>Pan</span> <span className="font-mono bg-white/10 px-2 rounded">Right Click Drag / Arrows</span></li>
+                                    <li className="flex justify-between"><span>Pan Camera</span> <span className="font-mono bg-white/10 px-2 rounded">Left Click Drag</span></li>
+                                    <li className="flex justify-between"><span>Rotate Camera</span> <span className="font-mono bg-white/10 px-2 rounded">Right Click Drag</span></li>
                                     <li className="flex justify-between"><span>Zoom</span> <span className="font-mono bg-white/10 px-2 rounded">Scroll Wheel</span></li>
                                 </ul>
                             </div>
+                            
                             <button 
                                 onClick={resetCamera}
                                 className="w-full py-3 text-sm font-medium bg-white/10 hover:bg-white/20 rounded-lg text-white transition-colors"
                             >
                                 Reset Camera Position
                             </button>
-                        </div>
-                    )}
-
-                    {activeTab === 'audio' && (
-                        <div className="flex items-center justify-center h-40 text-gray-500">
-                            No audio settings available
-                        </div>
-                    )}
-
-                    {activeTab === 'accessibility' && (
-                        <div className="flex items-center justify-center h-40 text-gray-500">
-                            No accessibility settings available
                         </div>
                     )}
                 </div>

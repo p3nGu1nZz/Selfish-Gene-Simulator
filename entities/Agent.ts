@@ -9,6 +9,9 @@ export const resetAgentId = () => {
     nextAgentId = 0;
 };
 
+export const getNextAgentId = () => nextAgentId;
+export const setNextAgentId = (n: number) => { nextAgentId = n; };
+
 const rand = (min: number, max: number) => Math.random() * (max - min) + min;
 
 export const createRandomGenome = (): Genome => ({
@@ -49,7 +52,6 @@ export const mutateGenome = (parent: Genome, magnitude: number): Genome => {
   };
 };
 
-// New: Mixes two genomes with HSV color inheritance logic
 export const mixGenomes = (g1: Genome, g2: Genome): Genome => {
     const clamp = (val: number, min: number, max: number) => Math.min(Math.max(val, min), max);
     
@@ -59,11 +61,18 @@ export const mixGenomes = (g1: Genome, g2: Genome): Genome => {
     const baseSelfish = (g1.selfishness + g2.selfishness) / 2;
     const baseMut = (g1.mutationRate + g2.mutationRate) / 2;
 
-    // HSV Color Inheritance
-    // We average the hue. Note: Circular average (shortest path) is better but simple average is fine for this scope.
+    // HSV Color Inheritance (Hue averaging with shortest path)
+    let d = g2.hue - g1.hue;
+    if (d > 0.5) d -= 1.0;
+    if (d < -0.5) d += 1.0;
+    
+    let avgHue = g1.hue + d * 0.5;
+    if (avgHue < 0) avgHue += 1.0;
+    if (avgHue > 1) avgHue -= 1.0;
+
     // Add ±5% variance to Hue
     const hueVariance = (Math.random() - 0.5) * 0.10; 
-    let newHue = ((g1.hue + g2.hue) / 2) + hueVariance;
+    let newHue = avgHue + hueVariance;
     if (newHue < 0) newHue += 1;
     if (newHue > 1) newHue -= 1;
 
@@ -76,7 +85,7 @@ export const mixGenomes = (g1: Genome, g2: Genome): Genome => {
     };
 };
 
-export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number, name?: {first: string, last: string}): Entity => {
+export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number, name?: {first: string, last: string}, existingData?: Partial<AgentData>, id?: number): Entity => {
     const limit = (WORLD_SIZE / 2) - 5;
     const position = pos ? pos.clone() : new Vector3(rand(-limit, limit), 0, rand(-limit, limit));
     
@@ -84,28 +93,33 @@ export const spawnAgent = (pos?: Vector3, genes?: Genome, parentEnergy?: number,
     const genome = genes || createRandomGenome();
     const agentName = name || generateName();
     
+    // If restoring, use existing data spread
+    const baseAgent = {
+        name: agentName,
+        genes: genome,
+        energy: parentEnergy || 100,
+        age: 0,
+        state: 'wandering' as const,
+        target: null,
+        trail: [],
+        lastMated: 0,
+        heading: initialVel.clone().normalize(),
+        hopTimer: Math.random(),
+        
+        // New Props
+        fear: 0,
+        affinity: {},
+        ownedBurrowId: null,
+        currentBurrowId: null,
+        digTimer: 0
+    };
+
+    const finalAgent = existingData ? { ...baseAgent, ...existingData } : baseAgent;
+
     return world.add({
-        id: nextAgentId++,
+        id: id !== undefined ? id : nextAgentId++,
         position,
         velocity: new Vector3(0,0,0), 
-        agent: {
-            name: agentName,
-            genes: genome,
-            energy: parentEnergy || 100,
-            age: 0,
-            state: 'wandering',
-            target: null,
-            trail: [],
-            lastMated: 0,
-            heading: initialVel.clone().normalize(),
-            hopTimer: Math.random(),
-            
-            // New Props
-            fear: 0,
-            affinity: {},
-            ownedBurrowId: null,
-            currentBurrowId: null,
-            digTimer: 0
-        }
+        agent: finalAgent
     });
 };

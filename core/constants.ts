@@ -1,14 +1,15 @@
 import { SimulationParams } from './types';
 
 export const WORLD_SIZE = 1024;
-export const MAX_POPULATION = 1200; 
-export const MAX_TRAIL_POINTS = 20;
+export const MAX_POPULATION = 600; 
+export const MAX_TRAIL_POINTS = 10;
 export const MIN_BURROW_SPACING = 32; // Rabbits ensure this distance between holes
 
 // Assets & Configuration
-export const RABBIT_MODEL_PATH = './assets/rabbit/rabbit_model.gltf';
-export const CARROT_MODEL_PATH = './assets/carrot/scene.gltf';
-export const ENABLE_EXTERNAL_MODELS = true;
+// using standard relative paths for public assets
+export const RABBIT_MODEL_PATH = 'assets/rabbit/rabbit_model.gltf';
+export const CARROT_MODEL_PATH = 'assets/carrot/scene.gltf'; 
+export const ENABLE_EXTERNAL_MODELS = true; 
 
 // Physics & Animation
 export const REAL_SECONDS_PER_GAME_DAY = 120;
@@ -17,6 +18,13 @@ export const ENERGY_REGEN_RATE = 10;
 export const DIG_COST = 0.5;
 export const DIG_THRESHOLD = 8.0; 
 export const FEAR_DECAY = 5; 
+
+export const MATURITY_DAYS = 0.8; // Minimum age in game-days to breed
+
+// Particle Tuning
+export const HEART_SIZE_MULT = 1.8;
+export const HEART_LIFETIME = 0.9;
+export const HEART_BURST_COUNT = 10;
 
 export const DEFAULT_PARAMS: SimulationParams = {
   initialPop: 40,

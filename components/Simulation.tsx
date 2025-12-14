@@ -1,12 +1,13 @@
 import React, { useMemo, useEffect } from 'react';
-import { useGLTF } from '@react-three/drei';
-import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, Color } from 'three';
+import { useGLTF, useTexture } from '@react-three/drei';
+import { BufferGeometry, Mesh, CapsuleGeometry, Material, MeshStandardMaterial, DoubleSide, Texture } from 'three';
 import { SimulationParams, ViewMode, AgentData } from '../core/types';
 import { clearWorld, agents } from '../core/ecs';
 import { spawnAgent, spawnFood, resetIds } from '../entities';
 import { LogicSystem } from '../systems/LogicSystem';
 import { RenderSystem } from '../systems/render/RenderSystem';
-import { RABBIT_MODEL_PATH, CARROT_MODEL_PATH, ENABLE_EXTERNAL_MODELS } from '../core/constants';
+import { RABBIT_MODEL_PATH, CARROT_MODEL_PATH } from '../core/constants';
+import { SaveState, restoreWorld } from '../core/SaveLoad';
 
 interface SimulationProps {
   params: SimulationParams;
@@ -21,7 +22,9 @@ interface SimulationProps {
   showEnergyBars: boolean;
   showTrails: boolean;
   showGrid?: boolean;
-  fallbackMode?: boolean;
+  fallbackMode?: boolean; // Deprecated but kept in interface for compatibility
+  loadedData: SaveState | null;
+  onLoadComplete: () => void;
 }
 
 // --- Component: Simulation Root ---
@@ -41,26 +44,38 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
     resetTrigger, 
     viewMode, 
     showEnergyBars,
-    showTrails,
+    showTrails, 
     showGrid,
     externalGeometry,
-    foodModels
+    foodModels,
+    loadedData,
+    onLoadComplete
 }) => {
   
   // Handle Reset and Initial Spawn
   useEffect(() => {
     clearWorld();
-    resetIds();
-    for (let i = 0; i < params.initialPop; i++) spawnAgent();
-    for (let i = 0; i < 20; i++) spawnFood(undefined, params.foodValue);
     
-    // Auto-select the first agent on reset
-    if (agents.entities.length > 0) {
-        onSelectAgent(agents.entities[0].id);
+    if (loadedData) {
+        restoreWorld(loadedData);
+        onLoadComplete(); // Clear loaded data in parent so future resets are random
     } else {
-        onSelectAgent(null);
+        resetIds();
+        for (let i = 0; i < params.initialPop; i++) spawnAgent();
+        for (let i = 0; i < 20; i++) spawnFood(undefined, params.foodValue);
     }
-  }, [resetTrigger, params.initialPop]); // eslint-disable-line react-hooks/exhaustive-deps
+    
+    // Auto-select the first agent if exists
+    // Timeout to allow ECS to update if needed
+    setTimeout(() => {
+        if (agents.entities.length > 0) {
+            onSelectAgent(agents.entities[0].id);
+        } else {
+            onSelectAgent(null);
+        }
+    }, 50);
+
+  }, [resetTrigger, loadedData]); // Trigger on reset or when loadedData is set
 
   return (
     <>
@@ -91,54 +106,78 @@ const SimulationRoot: React.FC<SimulationRootProps> = ({
   );
 };
 
-// --- Model Loader Wrapper ---
-const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
+export const Simulation: React.FC<SimulationProps> = (props) => {
+    // Load Rabbit
     const { scene: rabbitScene } = useGLTF(RABBIT_MODEL_PATH);
+    // Load Carrot
     const { scene: carrotScene } = useGLTF(CARROT_MODEL_PATH);
     
+    // Load Carrot Textures Explicitly
+    // Fix: Use absolute paths to prevent loading errors relative to current route
+    const [carrotBaseTex, carrotLeavesTex] = useTexture([
+        '/assets/carrot/textures/Carrot_Base_diffuse.png',
+        '/assets/carrot/textures/Carrot_Leaves_diffuse.png'
+    ]);
+    
+    // Fix Texture orientation immediately
+    // GLTF models expect flipped Y textures usually
+    carrotBaseTex.flipY = false;
+    carrotLeavesTex.flipY = false;
+
     const rabbitGeo = useMemo(() => {
         let geo: BufferGeometry | undefined;
         rabbitScene.traverse((child) => {
-            if ((child as Mesh).isMesh && !geo) {
-                geo = (child as Mesh).geometry;
+            if ((child as Mesh).isMesh) {
+                const m = child as Mesh;
+                if (!geo) geo = m.geometry;
+                
+                // Fix Rabbit Textures (usually embedded)
+                const mat = m.material as MeshStandardMaterial;
+                if (mat.map) {
+                    mat.map.flipY = false;
+                    mat.needsUpdate = true;
+                }
             }
         });
         return geo || new CapsuleGeometry(0.5, 1);
     }, [rabbitScene]);
 
     const carrotModels = useMemo(() => {
-        const parts: { geometry: BufferGeometry; material: Material }[] = [];
-        carrotScene.traverse((child) => {
-            if ((child as Mesh).isMesh) {
-                const mesh = child as Mesh;
-                const geo = mesh.geometry.clone();
-                const originalMat = mesh.material as any;
-                const newMat = new MeshStandardMaterial({ roughness: 0.8, metalness: 0.1 });
+        // Clone scene to avoid mutating global cache if used elsewhere
+        const scene = carrotScene.clone();
 
-                if (originalMat.map) {
-                    newMat.map = originalMat.map;
-                    newMat.color = new Color(1, 1, 1); 
+        scene.traverse((child) => {
+            if ((child as Mesh).isMesh) {
+                const m = child as Mesh;
+                const mat = m.material as MeshStandardMaterial;
+                
+                // Heuristic: Check material or mesh name for 'leaf' to assign leaf texture
+                const lowerName = (mat.name + m.name).toLowerCase();
+                
+                if (lowerName.includes('leaf') || lowerName.includes('leaves')) {
+                    mat.map = carrotLeavesTex;
+                    mat.transparent = true; 
+                    mat.alphaTest = 0.5; 
+                    mat.side = DoubleSide; 
+                    mat.depthWrite = true;
                 } else {
-                    const name = mesh.name.toLowerCase();
-                    if (name.includes('leaf') || name.includes('leaves') || name.includes('green')) {
-                        newMat.color.setHex(0x228b22); 
-                    } else {
-                         newMat.color.setHex(0xff8c00); 
-                    }
+                    mat.map = carrotBaseTex;
                 }
-                parts.push({ geometry: geo, material: newMat });
+                
+                // Ensure material knows we updated maps
+                mat.needsUpdate = true;
             }
         });
-        
-        if (parts.length === 2) {
-             const m0 = parts[0].material as MeshStandardMaterial;
-             const m1 = parts[1].material as MeshStandardMaterial;
-             if (!m0.map && !m1.map && m0.color.getHex() === m1.color.getHex()) {
-                 m1.color.setHex(0x228b22);
-             }
-        }
+
+        const parts: { geometry: BufferGeometry; material: Material }[] = [];
+        scene.traverse((child) => {
+            if ((child as Mesh).isMesh) {
+                const m = child as Mesh;
+                parts.push({ geometry: m.geometry, material: m.material as Material });
+            }
+        });
         return parts;
-    }, [carrotScene]);
+    }, [carrotScene, carrotBaseTex, carrotLeavesTex]);
 
     return (
         <SimulationRoot 
@@ -149,12 +188,6 @@ const SimulationModelWrapper: React.FC<SimulationProps> = (props) => {
     );
 };
 
-export const Simulation: React.FC<SimulationProps> = ({ fallbackMode, ...props }) => {
-    if (!ENABLE_EXTERNAL_MODELS || fallbackMode) {
-        return <SimulationRoot {...props} />;
-    }
-    return <SimulationModelWrapper {...props} />;
-};
-
+// Preload assets
 useGLTF.preload(RABBIT_MODEL_PATH);
 useGLTF.preload(CARROT_MODEL_PATH);

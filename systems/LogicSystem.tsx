@@ -1,6 +1,9 @@
 import React from 'react';
 import { useFrame } from '@react-three/fiber';
-import { FoodSystem, AgentSystem, ParticleSystem, BurrowSystem } from './index';
+import { FoodSystem } from './FoodSystem';
+import { AgentSystem } from './AgentSystem';
+import { ParticleSystem } from './ParticleSystem';
+import { BurrowSystem } from './BurrowSystem';
 import { SimulationParams, ViewMode, AgentData } from '../core/types';
 import { agents } from '../core/ecs';
 import { getAgentColorRGB } from '../core/utils';
@@ -26,7 +29,8 @@ export const LogicSystem: React.FC<LogicSystemProps> = ({
     onTimeUpdate 
 }) => {
     useFrame((state, delta) => {
-        const dt = paused ? 0 : Math.min(delta, 0.1) * params.simulationSpeed;
+        // Limit delta to prevent explosion on unpause
+        const dt = paused ? 0 : Math.min(delta, 0.05) * params.simulationSpeed;
         
         // Time Cycle Logic
         if (!paused) {
@@ -42,6 +46,8 @@ export const LogicSystem: React.FC<LogicSystemProps> = ({
             BurrowSystem(dt);
         }
         
+        // Always run particle system to let existing particles fade out naturally even if paused? 
+        // No, user probably wants full pause.
         if (!paused) {
             ParticleSystem(dt);
         }
